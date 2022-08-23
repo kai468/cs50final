@@ -27,4 +27,8 @@ def index():
         pieces[i] = h.pieceFenToChar(pieces[i])
     return render_template("index.html", cols=cols, pieces=pieces)
 
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
 

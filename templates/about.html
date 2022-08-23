@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    About
+{% endblock %}
+
+{% block main %}
+    <div class='about'>
+        <h1>About</h1>
+        <p>
+            This web application was my final project for <a href='https://pll.harvard.edu/course/cs50-introduction-computer-science?delta=0'>CS50</a> at Harvard University. 
+            Featuring a whole lot of different languages and ideas and really digging into the basic concepts of programming and how computers work, this class
+            was a great learning experience, nothing like other programming courses I took before. On top of that, it's completely free so I definitely recommend 
+            checking it out! 
+        </p>
+        <h3>Features</h3>
+        <p>
+            Chupochess Online features:
+            <ul>
+                <li>A basic chess engine implementing all the rules of the game</li>
+                <li>A highly responsive UI</li>
+                <li>An AI opponent, trained with game data from various chess grandmasters</li>
+            </ul>
+            To focus a bit more on the AI part of the project, I decided to start with a implementation allowing the user only to play with white and challenge the defending 
+            computer opponent. For further information and a live demo, feel free to have a glance at the <a href='https://github.com/kai468/cs50final'>git repository</a> 
+            and/or <a href='https://youtube.com'>project video</a>.
+        </p>
+    </div>
+{% endblock %}
+
+{% block script %}{% endblock %}
