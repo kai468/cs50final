@@ -14,11 +14,11 @@
 
     {% for i in range(64) %}
         {% if i in [0, 8, 16, 24, 32, 40, 48, 56] %}
-            <tr><th>{{ 8 - i / 8 }}</th>
+            <tr><th>{{ (8 - i / 8)|int }}</th>
         {% endif %}
         <td id='{{ i }}' class='BP'>&#{{ pieces[i] }};</td>
         {% if i in [7, 15, 23, 31, 39, 47, 55, 63] %}
-            <th>{{ 8 - (i - 7) / 8 }}</th>
+            <th>{{ (8 - (i - 7) / 8)|int }}</th>
         {% endif %}
     {% endfor %}
 
