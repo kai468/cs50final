@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Play
+{% endblock %}
+
+{% block main %}
+    <table class='chess_table'>
+    <tr><th></th>
+    {% for col in cols %}
+        <th>{{ col }}</th>
+    {% endfor %}
+    <th></th></tr>
+
+    {% for i in range(64) %}
+        {% if i in [0, 8, 16, 24, 32, 40, 48, 56] %}
+            <tr><th>{{ 8 - i / 8 }}</th>
+        {% endif %}
+        <td id='{{ i }}' class='BP'>&#{{ pieces[i] }};</td>
+        {% if i in [7, 15, 23, 31, 39, 47, 55, 63] %}
+            <th>{{ 8 - (i - 7) / 8 }}</th>
+        {% endif %}
+    {% endfor %}
+
+
+    <tr><th></th>
+    {% for col in cols %}
+        <th>{{ col }}</th>
+    {% endfor %}
+    <th class='turn_square'></th></tr>
+    </table>
+
+{% endblock %}
+
+{% block script %}
+    <script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
+    <script type=text/javascript>
+
+        $(window).on( 'load resize', function(){
+            $('.chess_table').width('auto').height('auto');
+            $('.chess_table td, .chess_table th').width('auto').height('auto').css({'font-size':0.1+'em'});
+            var tableSize = Math.min( window.innerHeight - 200, window.innerWidth);
+            var squareSize = tableSize / 10;
+            $('.chess_table').width(tableSize).height(tableSize);
+            $('.chess_table td, .chess_table th').width(squareSize).height(squareSize)
+            $('.chess_table td').css({ 'font-size':Math.floor(100*squareSize/16/1.4)/100+'em' });
+            $('.chess_table th').css({ 'font-size':Math.floor(100*squareSize/16/2.5)/100+'em' });
+        });
+
+    </script>
+
+
+{% endblock %}
