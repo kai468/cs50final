@@ -58,7 +58,7 @@ def index():
     pieces = board.getOutput()
     for i in range(64):
         pieces[i] = h.pieceFenToChar(pieces[i], (i in squaresMarked))
-    return render_template("index.html", cols=cols, pieces=pieces, marked=squaresMarked)
+    return render_template("index.html", cols=cols)
 
 @app.route("/about")
 def about():
@@ -67,11 +67,19 @@ def about():
 # TODO:
 @app.route("/gamestate", methods=["POST"])
 def gamestate():
+    response = {}
     if request.form.get("source") and request.form.get("target"):
+        # TODO: 1) check if valid Move 2) if yes: make Move; if no: return valid Moves for target sqare
         action = 'Move from ' + request.form.get("source") + ' to ' + request.form.get("target") + '.'
+        response['action'] = action 
     else:
-        action = 'get gamestate'
-    return jsonify({'action': action}), 200
+        # return piece List
+        pieces = board.getOutput()
+        for i in range(64):
+            pieces[i] = h.pieceFenToChar(pieces[i], (i in squaresMarked))
+        response['moveMade'] = 0
+        response['pieces'] = pieces
+    return jsonify(response), 200
     return jsonify({'ip': request.environ['REMOTE_ADDR']}), 200
     
     # returns: {"ip":"127.0.0.1"}

@@ -4,7 +4,7 @@ var selected;       // save selected square / -1 = no selection
 $(window).on( 'load resize', function(){
     $('.chess_table').width('auto').height('auto');
     $('.chess_table td, .chess_table th').width('auto').height('auto').css({'font-size':0.1+'em'});
-    var tableSize = Math.min( window.innerHeight - 200, window.innerWidth);
+    var tableSize = Math.min( window.innerHeight - 250, window.innerWidth);
     var squareSize = tableSize / 10;
     $('.chess_table').width(tableSize).height(tableSize);
     $('.chess_table td, .chess_table th').width(squareSize).height(squareSize)
@@ -60,11 +60,12 @@ $( '#btn_unmakeMove').click(function() {
 function updatePieces(){
     // TODO
     $.post("/gamestate",
-    {
-        
-    }, 
-    function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
+    {}, function(data, status){
+        var pieceList = data.pieces;
+        for (var i = 0; i < 64; i++){
+            $( 'td#' + i).text(pieceList[i]);
+        }
+        alert("Data: " +  pieceList[0] + "\nStatus: " + status);
     });
 }
 

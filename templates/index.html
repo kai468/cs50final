@@ -16,11 +16,7 @@
         {% if i in [0, 8, 16, 24, 32, 40, 48, 56] %}
             <tr><th>{{ (8 - i / 8)|int }}</th>
         {% endif %}
-        {% if i in marked %}
-            <td id='{{ i }}' class='marked'>&#{{ pieces[i] }};</td>
-        {% else %}
-            <td id='{{ i }}' class='unmarked'>&#{{ pieces[i] }};</td>
-        {% endif %}
+        <td id='{{ i }}' class='unmarked'></td>
         {% if i in [7, 15, 23, 31, 39, 47, 55, 63] %}
             <th>{{ (8 - (i - 7) / 8)|int }}</th>
         {% endif %}
@@ -34,9 +30,9 @@
     <th></th></tr>
     </table>
 
-    <button type="button" id="btn_unmakeMove">Unmake Move</button>
-    <button type="button" id="btn_draw">Draw</button>
-    <button type="button" id="btn_giveUp">Give Up</button>
+    <button type="button" id="btn_unmakeMove" class="btn btn-secondary">Unmake Move</button>
+    <button type="button" id="btn_draw" class="btn btn-secondary">Draw</button>
+    <button type="button" id="btn_giveUp" class="btn btn-secondary">Give Up</button>
 
 {% endblock %}
 
