@@ -1,6 +1,6 @@
 from typing import Tuple
 
-def pieceFenToChar(fen):
+def pieceFenToChar(fen: str, marked: bool):
     """ returns char for FEN notation """
     switcher = {
         "k" : "9818",
@@ -16,8 +16,12 @@ def pieceFenToChar(fen):
         "R" : "9814", 
         "P" : "9817",
     }
-    return switcher.get(fen, "8200")
-    # "&#8200;" is the unicode for a null character since the null character (&#0000;) might display a weird symbol in some browsers
+    if marked:
+        return switcher.get(fen, "11047")
+        # "&#11047;" is unicode for a diamond shape, indicating that the user can move to that square
+    else:
+        return switcher.get(fen, "8200")
+        # "&#8200;" is the unicode for a null character since the null character (&#0000;) might display a weird symbol in some browsers
 
 
 

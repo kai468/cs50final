@@ -59,6 +59,10 @@ table.chess_table tr th {
     font-size:1em;
 }
 
+table.chess_table td.marked {
+    color: #e60346;
+}
+
 /* ############## About ################## */
 
 .about {

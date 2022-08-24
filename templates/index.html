@@ -16,7 +16,11 @@
         {% if i in [0, 8, 16, 24, 32, 40, 48, 56] %}
             <tr><th>{{ (8 - i / 8)|int }}</th>
         {% endif %}
-        <td id='{{ i }}' class='inactive'>&#{{ pieces[i] }};</td>
+        {% if i in marked %}
+            <td id='{{ i }}' class='marked'>&#{{ pieces[i] }};</td>
+        {% else %}
+            <td id='{{ i }}' class='unmarked'>&#{{ pieces[i] }};</td>
+        {% endif %}
         {% if i in [7, 15, 23, 31, 39, 47, 55, 63] %}
             <th>{{ (8 - (i - 7) / 8)|int }}</th>
         {% endif %}
@@ -30,30 +34,14 @@
     <th></th></tr>
     </table>
 
+    <button type="button" id="btn_unmakeMove">Unmake Move</button>
+    <button type="button" id="btn_draw">Draw</button>
+    <button type="button" id="btn_giveUp">Give Up</button>
+
 {% endblock %}
+
 
 {% block script %}
     <script src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js'></script>
-    <script type=text/javascript>
-
-        // responsive chess board:
-        $(window).on( 'load resize', function(){
-            $('.chess_table').width('auto').height('auto');
-            $('.chess_table td, .chess_table th').width('auto').height('auto').css({'font-size':0.1+'em'});
-            var tableSize = Math.min( window.innerHeight - 200, window.innerWidth);
-            var squareSize = tableSize / 10;
-            $('.chess_table').width(tableSize).height(tableSize);
-            $('.chess_table td, .chess_table th').width(squareSize).height(squareSize)
-            $('.chess_table td').css({ 'font-size':Math.floor(100*squareSize/16/1.4)/100+'em' });
-            $('.chess_table th').css({ 'font-size':Math.floor(100*squareSize/16/2.5)/100+'em' });
-        });
-
-        // monitor user's clicks on the board
-        $( 'td' ).click(function(event) {
-            alert( event.target.id );
-        });
-
-    </script>
-
-
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 {% endblock %}

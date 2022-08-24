@@ -1,4 +1,5 @@
-from flask import Flask, flash, redirect, render_template, request, session
+from select import select
+from flask import Flask, flash, redirect, render_template, request, session, jsonify
 from flask_session import Session
 from chupochess import Board
 import helpers as h 
@@ -14,21 +15,89 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
-@app.route("/")
+# start chess engine
+board = Board()
+selected = -1           # marker for selected square (absolute location) -> -1 = no square selected 
+squaresMarked = []
+
+@app.route("/", methods=["GET", "POST"])
 def index():
     """Play chess"""
-    # white perspective:
+
+    # check user input
+    if request.method == "POST":
+        
+        inp = int(request.form.get("square"))
+
+        print("input: " + str(inp))
+
+        if selected == inp:
+            # unselect square
+            selected = -1
+            squaresMarked.clear()
+        elif selected == -1:
+            # try to select square (if there is a piece of the player)
+            selected = inp
+            squaresMarked.clear()
+            squaresMarked.extend(board.getMoves(selected))
+        elif inp in squaresMarked:
+            # make Move
+            selected = -1
+            squaresMarked.clear()
+            # TODO: trigger makeMove
+        else:
+            # unselect square
+            selected = -1 
+            squaresMarked.clear()
+
+
+    # generate output for white perspective:
     cols = []
     for i in range(65,73):
         cols.append(chr(i))
-    board = Board()
     pieces = board.getOutput()
     for i in range(64):
-        pieces[i] = h.pieceFenToChar(pieces[i])
-    return render_template("index.html", cols=cols, pieces=pieces)
+        pieces[i] = h.pieceFenToChar(pieces[i], (i in squaresMarked))
+    return render_template("index.html", cols=cols, pieces=pieces, marked=squaresMarked)
 
 @app.route("/about")
 def about():
     return render_template("about.html")
 
+# TODO:
+@app.route("/gamestate", methods=["POST"])
+def gamestate():
+    if request.form.get("source") and request.form.get("target"):
+        action = 'Move from ' + request.form.get("source") + ' to ' + request.form.get("target") + '.'
+    else:
+        action = 'get gamestate'
+    return jsonify({'action': action}), 200
+    return jsonify({'ip': request.environ['REMOTE_ADDR']}), 200
+    
+    # returns: {"ip":"127.0.0.1"}
+
+
+@app.route("/validMoves", methods = ["POST"])
+def validMoves():
+    selected = int(request.form.get("selected"))
+    action = 'get moves for ' + str(selected) + '.'
+    return jsonify({'action': action}), 200
+
+@app.route("/unmakeMove", methods=["POST"])
+def unmakeMove():
+    # TODO
+    action = "unmake Move"
+    return jsonify({'action': action}), 200
+
+@app.route("/draw", methods=["POST"])
+def draw():
+    # TODO
+    action = "draw"
+    return jsonify({'action': action}), 200
+
+@app.route("/giveUp", methods=["POST"])
+def giveUp():
+    # TODO
+    action = "give up"
+    return jsonify({'action': action}), 200
 

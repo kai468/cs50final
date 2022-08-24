@@ -1,6 +1,7 @@
 import abc
 from typing import List, Tuple
 from enum import Enum
+from typing_extensions import Self
 
 from helpers import pieceFenToChar
 
@@ -28,10 +29,47 @@ class FEN:
             ' ' + self.castlingAvailability + ' ' + self.enPassantTarget + ' ' + str(self.halfmoveClock) + \
             ' ' + str(self.fullMoveNumber)
 
+class Board:
+    def __init__(self) -> None:
+        self.FEN = FEN()
+        self.squares = {}
+        self.whitePieces = []
+        self.blackPieces = []
+        self.locationSquareMap = {}
+        pieces = PieceFactory.getPieces(self.FEN)
+        for loc in range(64):
+            self.squares[loc] = Square(loc)
+            if loc in pieces:
+                self.squares[loc].set(pieces[loc])
+                if self.squares[loc].currentPiece.color == PieceColor.WHITE:
+                    self.whitePieces.append(self.squares[loc].currentPiece)
+                else:
+                    self.blackPieces.append(self.squares[loc].currentPiece)
+            self.locationSquareMap[loc] = self.squares[loc]
+        # TODO: refactor: with this implementation, is the locationSquareMap still required? Since location is just an int index?
+
+    def getOutput(self) -> dict:
+        output = {}
+        for i in range(64):
+            piece = self.squares[i].currentPiece
+            if piece:
+                output[i] = str(piece)
+            else:
+                output[i] = ''
+        return output
+
+    def getMoves(self, location: int):
+        if self.squares[location].isOccupied:
+            return self.squares[location].currentPiece.getValidMoves(self)
+        else:
+            return []
+
 class Piece:
     def __init__(self, color: PieceColor) -> None:
         self.color = color
         self.identifier = ''
+        self.currentSquare = None
+
     def __str__(self) -> str:
         if self.color == PieceColor.WHITE:
             return self.identifier.upper()
@@ -73,11 +111,26 @@ class Pawn(Piece):
         Piece.__init__(self, color)
         self.value = 1
         self.identifier = 'P'
+        self.isFirstMove = True
+    
+    def getValidMoves(self, board: Board) -> List[int]:
+        moveCandidates = []
+        currentLocation = self.currentSquare.id
+        squareMap = board.locationSquareMap
+        offsets = [(0,1),(1,1),(-1,1)]
+        if self.isFirstMove:
+            offsets.append((0,2))
+        moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
+        # TODO: en passant
+        # TODO: this offset-generation logic could be problematic because from the offsets, locations
+        #       outside the board could be generated and the calculation logic to absolute/algebraic
+        #       notation is not tested/designed for non-existent locations!
+        return moveCandidates
+
 
 class Square:
     def __init__(self, id: int) -> None:
         self.id = id
-        self.location = Location(id)
         self.isOccupied = False
         self.currentPiece = None
 
@@ -85,62 +138,18 @@ class Square:
         piece = self.currentPiece
         self.isOccupied = False
         self.currentPiece = None
+        piece.currentSquare = None
         return piece
 
     def set(self, piece: Piece) -> None:
         self.isOccupied = True
         self.currentPiece = piece
+        piece.currentSquare = self
 
-
-class Board:
-    def __init__(self) -> None:
-        self.FEN = FEN()
-        self.squares = {}
-        self.whitePieces = []
-        self.blackPieces = []
-        self.locationSquareMap = LocationDictionary()
-        pieces = PieceFactory.getPieces(self.FEN)
-        for i in range(64):
-            self.squares[i] = Square(i)
-            if self.squares[i].location in pieces:
-                self.squares[i].set(pieces[self.squares[i].location])
-                if self.squares[i].currentPiece.color == PieceColor.WHITE:
-                    self.whitePieces.append(self.squares[i].currentPiece)
-                else:
-                    self.blackPieces.append(self.squares[i].currentPiece)
-            self.locationSquareMap[self.squares[i].location] = self.squares[i]
-
-    def getOutput(self) -> dict:
-        output = {}
-        for i in range(64):
-            piece = self.squares[i].currentPiece
-            if piece:
-                output[i] = str(piece)
-            else:
-                output[i] = ''
-        return output
 
 class Location:
-    def __init__(self, absolute: int) -> None:
-        self.absolute = absolute
-        self.tuple = Location.absoluteSqToTuple(absolute)
-        self.algebraic = Location.tupleToAlgebraicSq(self.tuple)
-
-    @classmethod
-    def fromTuple(cls, tpl: Tuple[int, int]):
-        return cls(Location.tupleToAbsoluteSq(tpl))
-
-    def __eq__(self, __o: object) -> bool:
-        if isinstance(__o, Location):
-            return self.tuple == __o.tuple
-        else:
-            return NotImplemented
-
-    def __hash__(self) -> int:
-        return hash(self.tuple)
-
-    def __str__(self) -> str:
-        return self.algebraic
+    def __init__(self) -> None:
+        pass
 
     """ 
     There will be three different notations for identifying a square on the chess board:
@@ -171,6 +180,18 @@ class Location:
         """ tuple to absolute notation, e.g. (7,7) -> 7; (4,3) -> 36 """
         return tpl[0] + (7 - tpl[1]) * 8
 
+    def getLocationsFromOffsets(current: int, offsets: List[Tuple[int,int]]) -> List[int]:
+        locations = []
+        currentTpl = Location.absoluteSqToTuple(current)
+        for offset in offsets:
+            file = currentTpl[0] + offset[0]
+            rank = currentTpl[1] + offset[1]
+            if file >= 0 and file <= 7 and rank >= 0 and rank <= 7:
+                # valid new location -> add to list:
+                locations.append(Location.tupleToAbsoluteSq((file, rank)))
+
+
+"""
 class LocationDictionary(dict):
     def __contains__(self, __o: Location) -> bool:
         # must be overwritten to make 'in' operator work for Location comparison
@@ -184,6 +205,7 @@ class LocationDictionary(dict):
         for key in self.keys():
             if key == __k:
                 return super().__getitem__(key)
+"""
 
 
 class PieceFactory:
@@ -196,8 +218,8 @@ class PieceFactory:
         'k' : King
     }
 
-    def getPieces(fen: FEN) -> LocationDictionary:
-        pieces = LocationDictionary()
+    def getPieces(fen: FEN) -> dict:
+        pieces = {}
         location = 0
         for c in fen.piecePlacement:
             if c.isnumeric():
@@ -205,7 +227,7 @@ class PieceFactory:
             elif c != '/':
                 color = PieceColor.WHITE if c.isupper() else PieceColor.BLACK
                 cls = PieceFactory.switcher.get(c.lower())
-                pieces[Location(location)] = cls(color)
+                pieces[location] = cls(color)
                 location += 1
         return pieces
             
