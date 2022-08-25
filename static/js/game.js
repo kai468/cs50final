@@ -58,14 +58,14 @@ $( '#btn_unmakeMove').click(function() {
 
 
 function updatePieces(){
-    // TODO
     $.post("/gamestate",
     {}, function(data, status){
-        var pieceList = data.pieces;
-        for (var i = 0; i < 64; i++){
-            $( 'td#' + i).text(pieceList[i]);
-        }
-        alert("Data: " +  pieceList[0] + "\nStatus: " + status);
+        if (status == 'success'){
+            var pieceList = data.pieces;
+            for (var i = 0; i < 64; i++){
+                $( 'td#' + i).text(pieceList[i]);
+            }
+        } 
     });
 }
 
@@ -88,7 +88,30 @@ function getMoves(){
         selected: selected
     }, 
     function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
+        if (status == 'success'){
+            // TODO:
+            var validMoves = data.validMoves;
+            var marker = false;
+            $('.chess_table td').each(function() {
+                marker = false;
+                for (var i = 0; i < validMoves.length; i++){
+                    if (validMoves[i] == $(this).attr('id')) {
+                        marker = true;
+                        if ($(this).html().trim().length == 0) {
+                            $(this).html('\u2b27');
+                        } 
+                        $(this).attr('class', 'marked');
+                        break;
+                    }
+                }
+                if (marker == false) {
+                    $(this).attr('class', 'unmarked');
+                    if ($(this).html() == '\u2b27') {
+                        $(this).html('\u2008');
+                    }
+                }
+            });
+        } 
     });
 }
 

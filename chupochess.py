@@ -59,7 +59,7 @@ class Board:
         return output
 
     def getMoves(self, location: int):
-        if self.squares[location].isOccupied:
+        if self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
             return self.squares[location].currentPiece.getValidMoves(self)
         else:
             return []
@@ -189,6 +189,7 @@ class Location:
             if file >= 0 and file <= 7 and rank >= 0 and rank <= 7:
                 # valid new location -> add to list:
                 locations.append(Location.tupleToAbsoluteSq((file, rank)))
+        return locations
 
 
 """

@@ -87,9 +87,19 @@ def gamestate():
 
 @app.route("/validMoves", methods = ["POST"])
 def validMoves():
-    selected = int(request.form.get("selected"))
-    action = 'get moves for ' + str(selected) + '.'
-    return jsonify({'action': action}), 200
+    response = {}
+    if request.form.get("selected"):
+        selected = int(request.form.get("selected"))
+        if board.getMoves(selected):
+            response['selected'] = selected
+            response['validMoves'] = board.getMoves(selected)
+        else:
+            # no white piece on the selected square -> return -1:
+            response['selected'] = -1
+            response['validMoves'] = []
+        return jsonify(response), 200
+    else:
+        return jsonify({}), 400
 
 @app.route("/unmakeMove", methods=["POST"])
 def unmakeMove():
