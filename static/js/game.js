@@ -29,8 +29,6 @@ $( 'td' ).click(function(event) {
     } else {
         // try to make move
         makeMove(selected, event.target.id);
-        selected = -1;
-        // TODO: if not a valid move, select new square and mark valid moves
     }
 });
 
@@ -55,6 +53,8 @@ $( '#btn_unmakeMove').click(function() {
     });
 });
 
+// TODO: End of Game (Display Popup / Overlaying shape)
+
 
 
 function updatePieces(){
@@ -70,40 +70,51 @@ function updatePieces(){
 }
 
 function makeMove(source, target){
-    // TODO 
     $.post("/gamestate",
     {
         source: source,
         target: target
     },
     function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
+        if (status == 'success'){
+            // valid Move: 
+            updatePieces();
+            selected = -1;
+        } else {
+            // not a valid move -> select new square and mark valid moves
+            selected = target;
+            getMoves();
+        }
     });
 }
 
 function getMoves(){
-    // TODO
+    // requests valid moves for selected square and marks them on the board
     $.post("/validMoves",
     {
         selected: selected
     }, 
     function(data, status){
         if (status == 'success'){
-            // TODO:
+            // if there is no white piece on the selected square, 'bad request' is returned by backend
             var validMoves = data.validMoves;
             var marker = false;
+            // check for each square if it's in the 'validMoves' List:
             $('.chess_table td').each(function() {
                 marker = false;
                 for (var i = 0; i < validMoves.length; i++){
                     if (validMoves[i] == $(this).attr('id')) {
                         marker = true;
+                        // if there are only whitespace characters, output a diamond shape:
                         if ($(this).html().trim().length == 0) {
                             $(this).html('\u2b27');
                         } 
+                        // mark the cell: 
                         $(this).attr('class', 'marked');
                         break;
                     }
                 }
+                // reset cell if it's not in the 'validMoves' list:
                 if (marker == false) {
                     $(this).attr('class', 'unmarked');
                     if ($(this).html() == '\u2b27') {
@@ -116,6 +127,11 @@ function getMoves(){
 }
 
 function deleteMoves(){
-    // TODO
-    alert("delete moves");
+    // delete all markers for valid Moves (that is, color via class and content for empty squares)
+    for (var i = 0; i < 64; i++){
+        $( 'td#' + i).attr('class', 'unmarked');
+        if ($('td#' + i).html() == '\u2b27') {
+            $('td#' + i).html('\u2008');
+        }
+    }
 }
