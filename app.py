@@ -16,13 +16,15 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 # start chess engine
-board = Board()
+board = Board.startingPosition()
 selected = -1           # marker for selected square (absolute location) -> -1 = no square selected 
 squaresMarked = []
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     """Play chess"""
+
+    # TODO: refactoring: with AJAX requests -> is POST still required for "/" route?
 
     # check user input
     if request.method == "POST":
@@ -57,7 +59,7 @@ def index():
         cols.append(chr(i))
     pieces = board.getOutput()
     for i in range(64):
-        pieces[i] = h.pieceFenToChar(pieces[i], (i in squaresMarked))
+        pieces[i] = h.pieceFenToChar(pieces[i])
     return render_template("index.html", cols=cols)
 
 @app.route("/about")
@@ -76,7 +78,7 @@ def gamestate():
         # return piece List
         pieces = board.getOutput()
         for i in range(64):
-            pieces[i] = h.pieceFenToChar(pieces[i], (i in squaresMarked))
+            pieces[i] = h.pieceFenToChar(pieces[i])
         response['moveMade'] = 0
         response['pieces'] = pieces
     return jsonify(response), 200

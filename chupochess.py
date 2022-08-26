@@ -1,52 +1,63 @@
-import abc
 from typing import List, Tuple
 from enum import Enum
-from typing_extensions import Self
-
-from helpers import pieceFenToChar
 
 class PieceColor(Enum):
     WHITE = 0
     BLACK = 1
     def Not(self):
-        if self == self.WHITE:
-            return PieceColor.BLACK
-        else:
-            return PieceColor.WHITE
+        # TODO: refactoring -> is .Not() still required or != comparison sufficient? 
+        return PieceColor(not bool(self.value))
 
 class FEN:
     """ https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation """
-    def __init__(self) -> None:
-        self.piecePlacement = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'
-        self.activeColor = 'w'
-        self.castlingAvailability = 'KQkq'
-        self.enPassantTarget = '-'
-        self.halfmoveClock = 0
-        self.fullMoveNumber = 1
+    def __init__(self, fen: str) -> None:
+        inp = fen.split()
+        self.piecePlacement = inp[0]
+        self.activeColor = inp[1]
+        self.castlingAvailability = inp[2]
+        self.enPassantTarget = inp[3]
+        self.halfmoveClock = inp[4]
+        self.fullMoveNumber = inp[5]
+
+    @classmethod
+    def startingPosition(cls):
+        # FEN for starting position:
+        return cls('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+
 
     def __str__(self) -> str:
         return self.piecePlacement + ' ' + self.activeColor + ' ' + self.castlingAvailability + \
-            ' ' + self.castlingAvailability + ' ' + self.enPassantTarget + ' ' + str(self.halfmoveClock) + \
+            ' ' + self.enPassantTarget + ' ' + str(self.halfmoveClock) + \
             ' ' + str(self.fullMoveNumber)
 
 class Board:
-    def __init__(self) -> None:
-        self.FEN = FEN()
+    def __init__(self, fen: FEN, unmakeCounter: int) -> None:
+        self.fen = fen
         self.squares = {}
-        self.whitePieces = []
-        self.blackPieces = []
-        self.locationSquareMap = {}
-        pieces = PieceFactory.getPieces(self.FEN)
+        self.unmakeCounter = unmakeCounter
+        self.pieces = {}
+        self.pieces[PieceColor.WHITE] = []
+        self.pieces[PieceColor.BLACK] = []
+        pieces = PieceFactory.getPieces(self.fen)
         for loc in range(64):
             self.squares[loc] = Square(loc)
             if loc in pieces:
                 self.squares[loc].set(pieces[loc])
-                if self.squares[loc].currentPiece.color == PieceColor.WHITE:
-                    self.whitePieces.append(self.squares[loc].currentPiece)
-                else:
-                    self.blackPieces.append(self.squares[loc].currentPiece)
-            self.locationSquareMap[loc] = self.squares[loc]
-        # TODO: refactor: with this implementation, is the locationSquareMap still required? Since location is just an int index?
+                self.pieces[pieces[loc].color].append(pieces[loc])
+
+    @classmethod
+    def startingPosition(cls):
+        return cls(FEN.startingPosition(), 0)
+
+    @classmethod
+    def fromString(cls, string: str):
+        # split 'extended FEN' into FEN and unmake counter:
+        i = string.rindex(' ')
+        return cls(FEN(string[:i]), int(string[i+1:]))
+
+    def __str__(self) -> str:
+        # extended FEN: FEN + unmake counter:
+        return self.fen + ' ' + str(self.unmakeCounter)
 
     def getOutput(self) -> dict:
         output = {}
@@ -58,67 +69,66 @@ class Board:
                 output[i] = ''
         return output
 
-    def getMoves(self, location: int):
+    def getMoves(self, location: int) -> List[int]:
         if self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
             return self.squares[location].currentPiece.getValidMoves(self)
         else:
             return []
 
+    def getPGN(self) -> str:
+        # TODO
+        pass
+
+
 class Piece:
-    def __init__(self, color: PieceColor) -> None:
+    def __init__(self, color: PieceColor, identifier: str, value: int) -> None:
         self.color = color
-        self.identifier = ''
+        if color == PieceColor.WHITE:
+            self.identifier = identifier.upper()
+        else: 
+            self.identifier = identifier.lower()
+        self.value = value
         self.currentSquare = None
 
     def __str__(self) -> str:
-        if self.color == PieceColor.WHITE:
-            return self.identifier.upper()
-        else:
-            return self.identifier.lower()
+        return self.identifier
 
 class King(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 0
-        self.identifier = 'K'
+        Piece.__init__(self, color, 'K', 0)
 
 class Queen(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 9
-        self.identifier = 'Q'
+        Piece.__init__(self, color, 'Q', 9)
 
 class Rook(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 5
-        self.identifier = 'R'
+        Piece.__init__(self, color, 'R', 5)
 
 class Bishop(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 3
-        self.identifier = 'B'
+        Piece.__init__(self, color, 'B', 3)
 
 class Knight(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 3
-        self.identifier = 'N'
+        Piece.__init__(self, color, 'N', 3)
 
 class Pawn(Piece):
     def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color)
-        self.value = 1
-        self.identifier = 'P'
-        self.isFirstMove = True
+        Piece.__init__(self, color, 'P', 1)
+
+    def isFirstMove(self) -> bool:
+        if (self.color == PieceColor.WHITE and self.currentSquare.id >= 48 and self.currentSquare.id <= 55) or \
+            (self.color == PieceColor.BLACK and self.currentSquare.id >= 8 and self.currentSquare.id <= 15):
+            return True
+        else:
+            return False
     
     def getValidMoves(self, board: Board) -> List[int]:
         moveCandidates = []
         currentLocation = self.currentSquare.id
-        squareMap = board.locationSquareMap
         offsets = [(0,1),(1,1),(-1,1)]
-        if self.isFirstMove:
+        if self.isFirstMove():
             offsets.append((0,2))
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         # TODO: en passant

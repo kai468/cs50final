@@ -78,7 +78,7 @@ function makeMove(source, target){
     function(data, status){
         if (status == 'success'){
             // valid Move: 
-            updatePieces();
+            updatePieces();     // TODO: maybe it would make sense to return the updated PieceList within data also for the makeMove request? 
             selected = -1;
         } else {
             // not a valid move -> select new square and mark valid moves
