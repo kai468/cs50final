@@ -57,7 +57,7 @@ class Board:
 
     def __str__(self) -> str:
         # extended FEN: FEN + unmake counter:
-        return self.fen + ' ' + str(self.unmakeCounter)
+        return str(self.fen) + ' ' + str(self.unmakeCounter)
 
     def getOutput(self) -> dict:
         output = {}
