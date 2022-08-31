@@ -197,7 +197,10 @@ class King(Piece):
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
-        moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
+        moveCandidates = Location.getLocationsFromOffsets(self.currentSquare.id, offsets)
+        # filter out move candidates with ally pieces 
+        moveCandidates[:] = filterfalse(lambda candidate : \
+            True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else False, moveCandidates)
         # TODO: check detection
         # TODO: castling rights
         return moveCandidates

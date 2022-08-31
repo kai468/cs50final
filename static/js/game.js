@@ -49,7 +49,6 @@ $( '#btn_draw').click(function() {
 $( '#btn_unmakeMove').click(function() {
     $.post("/unmakeMove",
     {}, function(data, status){
-        // TODO:
         if (status == 'success'){
             var pieceList = data.pieces;
             for (var i = 0; i < 64; i++){
