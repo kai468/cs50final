@@ -1,3 +1,5 @@
+from itertools import filterfalse
+from shutil import move
 from typing import List, Tuple
 from enum import Enum
 
@@ -161,6 +163,26 @@ class Piece:
         board.removePiece(board.squares[target].reset())    # make capture if there is sth to capture
         board.squares[target].set(self)
 
+    def _getMoveCandidatesFromOffsets(self, board: Board, offsets: List[Tuple[int, int]]) -> List[int]:
+        moveCandidates = []
+        for offset in offsets:
+            # explore the field in every possible direction
+            next = Location.getLocationsFromOffsets(self.currentSquare.id, [offset])
+            while next:
+                next = next[0]
+                if board.squares[next].isOccupied and board.squares[next].currentPiece.color != self.color:
+                    # opponent piece found: 
+                    moveCandidates.append(next)
+                    break
+                elif board.squares[next].isOccupied:
+                    # ally piece found:
+                    break
+                else:
+                    # no piece found:
+                    moveCandidates.append(next)
+                next = Location.getLocationsFromOffsets(next, [offset])
+        return moveCandidates
+
     def makeMove(self, board: Board, target: int):
         # TODO: implement for the remaining pieces
         pass
@@ -173,21 +195,73 @@ class King(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'K', 0)
 
+    def getValidMoves(self, board: Board) -> List[int]:
+        offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
+        moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
+        # TODO: check detection
+        # TODO: castling rights
+        return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        # TODO: update castling rights
+        self._switchSquaresAndCapture(board, target)
+        
+
 class Queen(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'Q', 9)
+
+    def getValidMoves(self, board: Board) -> List[int]:
+        offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
+        moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
+        # TODO: pinned check
+        return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        self._switchSquaresAndCapture(board, target)
 
 class Rook(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'R', 5)
 
+    def getValidMoves(self, board: Board) -> List[int]:
+        offsets = [(-1,0), (1,0), (0, -1), (0, 1)]
+        moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
+        # TODO: pinned check
+        return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        # TODO: update castling rights
+        self._switchSquaresAndCapture(board, target)
+
 class Bishop(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'B', 3)
 
+    def getValidMoves(self, board: Board) -> List[int]:
+        offsets = [(-1,1), (1,1), (-1, -1), (1,-1)]
+        moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
+        # TODO: pinned check
+        return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        self._switchSquaresAndCapture(board, target)
+
 class Knight(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'N', 3)
+
+    def getValidMoves(self, board: Board) -> List[int]:
+        offsets = [(-2,1),(-1,2),(1,2),(2,1),(2,-1),(1,-2),(-1,-2),(-2,-1)]
+        currentLocation = self.currentSquare.id
+        moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
+        moveCandidates[:] = filterfalse(lambda candidate : \
+            True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else False, moveCandidates)
+        return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        self._switchSquaresAndCapture(board, target)
+    
 
 class Pawn(Piece):
     def __init__(self, color: PieceColor) -> None:
@@ -201,7 +275,6 @@ class Pawn(Piece):
             return False
     
     def getValidMoves(self, board: Board) -> List[int]:
-        moveCandidates = []
         currentLocation = self.currentSquare.id
         if self.color == PieceColor.WHITE:
             offsets = [(0,1),(1,1),(-1,1)]
@@ -210,10 +283,18 @@ class Pawn(Piece):
         if self.isFirstMove():
             offsets.append((0,2*offsets[0][1]))
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
+        # remove candidates with a file offset if there is no opponent piece
+        # and candidates without file offset if there is any piece:
+        moveCandidates[:] = filterfalse(lambda candidate : \
+            True if (Location.getFileOffset(self.currentSquare.id, candidate) != 0 and (board.squares[candidate].isOccupied == False or board.squares[candidate].currentPiece.color == self.color)) else (
+                True if (Location.getFileOffset(self.currentSquare.id, candidate) == 0 and board.squares[candidate].isOccupied) else False
+            ), moveCandidates)
+        # TODO: if square in front of the pawn is blocked, the next square (offset 2) is also not a valid move 
         # TODO: en passant
         return moveCandidates
 
     def makeMove(self, board: Board, target: int) -> None:
+        # TODO: update en passant rights --> maybe in switchSquaresAndCapture since en passant rights are gone with every movement
         self._switchSquaresAndCapture(board, target)
 
 
@@ -244,7 +325,7 @@ class Location:
     """ 
     There will be three different notations for identifying a square on the chess board:
         > the human-friendly notation, e.g. "A8" or "C6" -> it is also used for the algebraic notation and PGN so let's call it "algebraic"
-        > the tuple notation with two 0-based indices for rank and file, e.g. (0,7) or (2,5) (=A8/C6)
+        > the tuple notation with two 0-based indices for file and rank, e.g. (0,7) or (2,5) (=A8/C6)
         > the absolute notation, giving each square a value between 0 and 63 (starting with 0 for A8, completing the current
         rank until 7 for H8, then switching to the next rank, and so on, until 63 for H1) -> e.g. 0 or 18 (=A8/C6)
         (it would maybe be more intuitive to start with 0 for A1 - however, the chosen concept maps really good to the FEN notation)
@@ -280,6 +361,12 @@ class Location:
                 # valid new location -> add to list:
                 locations.append(Location.tupleToAbsoluteSq((file, rank)))
         return locations
+
+    def getFileOffset(current: int, target: int) -> int:
+        return Location.absoluteSqToTuple(current)[0] - Location.absoluteSqToTuple(target)[0]
+
+    def getRankOffset(current: int, target: int) -> int:
+        return Location.absoluteSqToTuple(current)[1] - Location.absoluteSqToTuple(target)[1]
 
 
 """

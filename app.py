@@ -57,6 +57,7 @@ def gamestate():
         if source >= 0 and source <= 64 and target >= 0 and target <= 64 and target != source:
             response['moveMade'] = int(board.makeMove(source, target))
             dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
+            board = Board.fromString(str(board))
             board.opponent.makeMove(board)
             dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
         else:
