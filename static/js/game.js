@@ -49,12 +49,50 @@ $( '#btn_draw').click(function() {
 $( '#btn_unmakeMove').click(function() {
     $.post("/unmakeMove",
     {}, function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
+        // TODO:
+        if (status == 'success'){
+            var pieceList = data.pieces;
+            for (var i = 0; i < 64; i++){
+                $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
+                $( 'td#' + i).attr('class', 'unmarked');
+            }
+        } 
     });
 });
 
 // TODO: End of Game (Display Popup / Overlaying shape)
 
+
+function pieceFenToUnicode(fen){
+    switch(fen) {
+        case 'k': 
+            return '\u265a';
+        case 'q': 
+            return '\u265b'; 
+        case 'n': 
+            return '\u265e';
+        case 'b': 
+            return '\u265d';
+        case 'r': 
+            return '\u265c'; 
+        case 'p': 
+            return '\u265f';
+        case 'K': 
+            return '\u2654';
+        case 'Q': 
+            return '\u2655'; 
+        case 'N': 
+            return '\u2658';
+        case 'B': 
+            return '\u2657';
+        case 'R': 
+            return '\u2656'; 
+        case 'P': 
+            return '\u2659';
+        default:
+            return '\u2008';
+    }
+}
 
 
 function updatePieces(){
@@ -63,7 +101,7 @@ function updatePieces(){
         if (status == 'success'){
             var pieceList = data.pieces;
             for (var i = 0; i < 64; i++){
-                $( 'td#' + i).text(pieceList[i]);
+                $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
             }
         } 
     });
@@ -77,14 +115,45 @@ function makeMove(source, target){
     },
     function(data, status){
         if (status == 'success'){
-            // valid Move: 
-            updatePieces();     // TODO: maybe it would make sense to return the updated PieceList within data also for the makeMove request? 
-            selected = -1;
-        } else {
-            // not a valid move -> select new square and mark valid moves
-            selected = target;
-            getMoves();
-        }
+            if (data.moveMade == 1) {
+                // valid Move: 
+                selected = -1;
+                // update pieces:
+                var pieceList = data.pieces;
+                for (var i = 0; i < 64; i++){
+                    $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
+                    $( 'td#' + i).attr('class', 'unmarked');
+                }
+            } else {
+                // not a valid move -> select new square and mark valid moves
+                selected = target;
+                var validMoves = data.validMoves;
+                var marker = false; 
+                // check for each square if it's in the 'validMoves' List:
+                $('.chess_table td').each(function() {
+                    marker = false;
+                    for (var i = 0; i < validMoves.length; i++){
+                        if (validMoves[i] == $(this).attr('id')) {
+                            marker = true;
+                            // if there are only whitespace characters, output a diamond shape:
+                            if ($(this).html().trim().length == 0) {
+                                $(this).html('\u2b27');
+                            } 
+                            // mark the cell: 
+                            $(this).attr('class', 'marked');
+                            break;
+                        }
+                    }
+                    // reset cell if it's not in the 'validMoves' list:
+                    if (marker == false) {
+                        $(this).attr('class', 'unmarked');
+                        if ($(this).html() == '\u2b27') {
+                            $(this).html('\u2008');
+                        }
+                    }
+                }); 
+            }
+        } 
     });
 }
 

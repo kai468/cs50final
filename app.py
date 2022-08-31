@@ -2,7 +2,6 @@ from select import select
 from flask import Flask, flash, redirect, render_template, request, session, jsonify
 from flask_session import Session
 from chupochess import Board
-from helpers import pieceFenToChar
 from helpers import DataLayer as dl
 from cs50 import SQL 
 
@@ -20,6 +19,18 @@ Session(app)
 # configure database:
 db = SQL("sqlite:///chupochess.db")
 
+def getBoard(user: str) -> Board:
+    """ helper function to get the existing Game (board) or initiate a new one """
+    fen = dl.getExtFen(db, user)
+    if fen:
+        # load existing game: 
+        board = Board.fromString(fen)
+    else: 
+        # create new game:
+        board = Board.startingPosition()
+        dl.storeNewMove(db, user, str(board))
+    return board
+
 @app.route("/", methods=["GET"])
 def index():
     """Play chess"""
@@ -36,18 +47,26 @@ def about():
 @app.route("/gamestate", methods=["POST"])
 def gamestate():
     response = {}
+    board = getBoard(request.environ['REMOTE_ADDR'])
     if request.form.get("source") and request.form.get("target"):
         # TODO: 1) check if valid Move 2) if yes: make Move; if no: return valid Moves for target sqare
-        action = 'Move from ' + request.form.get("source") + ' to ' + request.form.get("target") + '.'
-        response['action'] = action 
+        # check if valid move
+        source = int(request.form.get("source"))
+        target = int(request.form.get("target"))
+        # do some input validation:
+        if source >= 0 and source <= 64 and target >= 0 and target <= 64 and target != source:
+            response['moveMade'] = int(board.makeMove(source, target))
+            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
+            board.opponent.makeMove(board)
+            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
+        else:
+            response['moveMade'] = 0
+            response['validMoves'] = board.getMoves(target)
+        response['pieces'] = board.getOutput()     
     else:
         # print pieces:
-        board = getBoard(request.environ['REMOTE_ADDR'])
-        pieces = board.getOutput()
-        for i in range(64):
-            pieces[i] = pieceFenToChar(pieces[i])
         response['moveMade'] = 0
-        response['pieces'] = pieces
+        response['pieces'] = board.getOutput()
     return jsonify(response), 200
 
 
@@ -70,9 +89,14 @@ def validMoves():
 
 @app.route("/unmakeMove", methods=["POST"])
 def unmakeMove():
-    # TODO
-    action = "unmake Move"
-    return jsonify({'action': action}), 200
+    response = {}
+    fen = dl.reverseMove(db, request.environ['REMOTE_ADDR'])
+    if fen: 
+        board = Board.fromString(fen)
+    else: 
+        board = getBoard(request.environ['REMOTE_ADDR']) 
+    response['pieces'] = board.getOutput()
+    return jsonify(response), 200
 
 @app.route("/draw", methods=["POST"])
 def draw():
@@ -86,15 +110,5 @@ def giveUp():
     action = "give up"
     return jsonify({'action': action}), 200
 
-def getBoard(user: str) -> Board:
-    """ helper function to get the existing Game (board) or initiate a new one """
-    fen = dl.getExtFen(db, user)
-    if fen:
-        # load existing game: 
-        board = Board.fromString(fen)
-    else: 
-        # create new game:
-        board = Board.startingPosition()
-        dl.storeNewMove(db, user, str(board))
-    return board
+
 

@@ -24,7 +24,6 @@ class FEN:
         # FEN for starting position:
         return cls('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
 
-
     def __str__(self) -> str:
         return self.piecePlacement + ' ' + self.activeColor + ' ' + self.castlingAvailability + \
             ' ' + self.enPassantTarget + ' ' + str(self.halfmoveClock) + \
@@ -39,6 +38,7 @@ class Board:
         self.pieces[PieceColor.WHITE] = []
         self.pieces[PieceColor.BLACK] = []
         pieces = PieceFactory.getPieces(self.fen)
+        self.opponent = Chupponnent()
         for loc in range(64):
             self.squares[loc] = Square(loc)
             if loc in pieces:
@@ -69,15 +69,77 @@ class Board:
                 output[i] = ''
         return output
 
-    def getMoves(self, location: int) -> List[int]:
+    def getMoves(self, location: int, chupponnentMove: bool = False) -> List[int]:
         if self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
+            return self.squares[location].currentPiece.getValidMoves(self)
+        elif chupponnentMove:    # we trust our chupponnent to just query for occupied squares
             return self.squares[location].currentPiece.getValidMoves(self)
         else:
             return []
 
+    def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> bool:
+        # returns true/false whether move was made successfully
+        if target in self.getMoves(source, chupponnentMove):
+            self.squares[source].currentPiece.makeMove(self, target)
+            # update FEN for successful move:
+            # 1) piece placement: 
+            self.fen.piecePlacement = ''
+            emptySquares = 0 
+            for loc in range(64):
+                if loc % 8 == 0:
+                    if emptySquares != 0 :
+                        self.fen.piecePlacement += str(emptySquares)
+                        emptySquares = 0
+                    self.fen.piecePlacement += '/'
+                if not self.squares[loc].isOccupied:
+                    emptySquares += 1
+                elif emptySquares == 0:
+                    self.fen.piecePlacement += str(self.squares[loc].currentPiece)
+                else:
+                    self.fen.piecePlacement += str(emptySquares)
+                    emptySquares = 0
+                    self.fen.piecePlacement += str(self.squares[loc].currentPiece)
+            # 2) active color: 
+            self.fen.activeColor = 'b' if self.fen.activeColor == 'w' else 'w'
+            # 3) TODO: castling rights, en passant, half moves
+            # move count: 
+            if self.fen.activeColor == 'w':
+                self.fen.fullMoveNumber = str(int(self.fen.fullMoveNumber) + 1)  # increase full move count after black's move
+            return True
+        else:
+            # not a valid move
+            return False
+
+    def removePiece(self, piece: object) -> None:
+        if not piece: return
+        self.pieces[piece.color].remove(piece)
+
     def getPGN(self) -> str:
         # TODO
         pass
+
+class Chupponnent:
+    def __init__(self) -> None:
+        pass
+
+    def makeMove(self, board: Board) -> None:
+        # TODO
+        # just for getting everything else on track: at the moment, this only selects a random black piece and (also randomly) one
+        # of its valid moves and does this move without any intelligence -> this is only a mock up 
+        from random import seed, randint
+        seed(1)
+        moves = []
+        cnt = 0
+        while len(moves) == 0:
+            pieceId = randint(0, len(board.pieces[PieceColor.BLACK]) - 1)
+            moves = board.pieces[PieceColor.BLACK][pieceId].getValidMoves(board)
+            cnt += 1
+            if cnt >= 100:
+                break
+        if len(moves) > 0: 
+            moveId = randint(0, len(moves) - 1)
+            piece = board.pieces[PieceColor.BLACK][pieceId]
+            board.makeMove(piece.currentSquare.id, moves[moveId], True)
 
 
 class Piece:
@@ -92,6 +154,20 @@ class Piece:
 
     def __str__(self) -> str:
         return self.identifier
+
+    def _switchSquaresAndCapture(self, board: Board, target: int) -> None:
+        self.currentSquare.reset()
+        self.currentSquare = board.squares[target]
+        board.removePiece(board.squares[target].reset())    # make capture if there is sth to capture
+        board.squares[target].set(self)
+
+    def makeMove(self, board: Board, target: int):
+        # TODO: implement for the remaining pieces
+        pass
+
+    def getValidMoves(self, board: Board) -> List[int]:
+        # TODO: implement for the remaining pieces
+        return []
 
 class King(Piece):
     def __init__(self, color: PieceColor) -> None:
@@ -127,15 +203,18 @@ class Pawn(Piece):
     def getValidMoves(self, board: Board) -> List[int]:
         moveCandidates = []
         currentLocation = self.currentSquare.id
-        offsets = [(0,1),(1,1),(-1,1)]
+        if self.color == PieceColor.WHITE:
+            offsets = [(0,1),(1,1),(-1,1)]
+        else:
+            offsets = [(0,-1),(1,-1),(-1,-1)]
         if self.isFirstMove():
-            offsets.append((0,2))
+            offsets.append((0,2*offsets[0][1]))
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         # TODO: en passant
-        # TODO: this offset-generation logic could be problematic because from the offsets, locations
-        #       outside the board could be generated and the calculation logic to absolute/algebraic
-        #       notation is not tested/designed for non-existent locations!
         return moveCandidates
+
+    def makeMove(self, board: Board, target: int) -> None:
+        self._switchSquaresAndCapture(board, target)
 
 
 class Square:
@@ -148,7 +227,8 @@ class Square:
         piece = self.currentPiece
         self.isOccupied = False
         self.currentPiece = None
-        piece.currentSquare = None
+        if piece:
+            piece.currentSquare = None
         return piece
 
     def set(self, piece: Piece) -> None:
