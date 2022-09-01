@@ -1,7 +1,7 @@
 from itertools import filterfalse
-from shutil import move
 from typing import List, Tuple
 from enum import Enum
+from typing_extensions import Self
 
 class PieceColor(Enum):
     WHITE = 0
@@ -39,6 +39,7 @@ class Board:
         self.pieces = {}
         self.pieces[PieceColor.WHITE] = []
         self.pieces[PieceColor.BLACK] = []
+        self.kingLocation = {}
         pieces = PieceFactory.getPieces(self.fen)
         self.opponent = Chupponnent()
         for loc in range(64):
@@ -46,6 +47,8 @@ class Board:
             if loc in pieces:
                 self.squares[loc].set(pieces[loc])
                 self.pieces[pieces[loc].color].append(pieces[loc])
+                if pieces[loc].identifier.upper() == 'K':
+                    self.kingLocation[pieces[loc].color] = loc
 
     @classmethod
     def startingPosition(cls):
@@ -120,6 +123,20 @@ class Board:
         # TODO
         pass
 
+    def removeCastlingRights(self, color: PieceColor, which: str) -> None:
+        newFen = ''
+        if color == PieceColor.WHITE:
+            toBeDeleted = which.upper()
+        else:
+            toBeDeleted = which.lower()
+        for char in self.fen.castlingAvailability:
+            if char not in toBeDeleted:
+                newFen += char
+        if newFen == '': 
+            newFen = '-'
+        self.fen.castlingAvailability = newFen
+
+
 class Chupponnent:
     def __init__(self) -> None:
         pass
@@ -162,6 +179,8 @@ class Piece:
         self.currentSquare = board.squares[target]
         board.removePiece(board.squares[target].reset())    # make capture if there is sth to capture
         board.squares[target].set(self)
+        # update en passant rights:
+        board.fen.enPassantTarget = '-'
 
     def _getMoveCandidatesFromOffsets(self, board: Board, offsets: List[Tuple[int, int]]) -> List[int]:
         moveCandidates = []
@@ -183,13 +202,90 @@ class Piece:
                 next = Location.getLocationsFromOffsets(next, [offset])
         return moveCandidates
 
-    def makeMove(self, board: Board, target: int):
-        # TODO: implement for the remaining pieces
-        pass
+    def _isPinned(self, board: Board) -> bool:
+        kingLocation = board.kingLocation[self.color]
+        fileOffset = Location.getFileOffset(kingLocation, self.currentSquare.id)
+        rankOffset = Location.getRankOffset(kingLocation, self.currentSquare.id)
+        # check if self is on an "attack path" relative to king:
+        if abs(fileOffset) == abs(rankOffset):
+            # potential attackers: bishop and queen
+            offset = (int(fileOffset / abs(fileOffset)), int(rankOffset / abs(rankOffset)))
+            attackers = ['Q', 'B']
+        elif fileOffset == 0:
+            # potential attackers: rook and queen
+            offset = (0, int(rankOffset / abs(rankOffset)))
+            attackers = ['Q', 'R']
+        elif rankOffset == 0:
+            # potential attackers: rook and queen
+            offset = (int(fileOffset / abs(fileOffset)), 0)
+            attackers = ['Q', 'R']
+        else:
+            # no pin possible
+            return False
+        next = Location.getLocationsFromOffsets(self.currentSquare.id, [offset])
+        while next:
+            next = next[0]
+            if next == self.currentSquare.id:
+                pass            
+            elif board.squares[next].isOccupied and board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in attackers:
+                # attacker found:
+                return True
+            elif board.squares[next].isOccupied:
+                # king is protected by other ally or opponent piece:
+                return False
+            next = Location.getLocationsFromOffsets(next, [offset])
+        # if we end up here, there was no attacker found:
+        return False
 
-    def getValidMoves(self, board: Board) -> List[int]:
-        # TODO: implement for the remaining pieces
-        return []
+    def _getGlobalValidMoves(self, moveCandidates: List[int], board: Board) -> List[int]:
+        """ takes into account the global board situation, that is:
+            - Pins (remove moves that would lead to a check)
+            - Checks (if the king is in check, only moves that prevent that check are valid)
+            hint: _getGlobalValidMoves() will not be called by the king itself, so if the king is being checked by
+            more than one piece at the same time, this function will just return an empty list (because a double
+            check can only be solved by moving the king)
+        """
+        check = board.squares[board.kingLocation[self.color]].currentPiece.isInCheck(board)
+        if len(check) >= 2:
+            # a position where the king is checked by 2 or more pieces can only be resolved through moving the king
+            return []
+        pin = self._isPinned(board)
+        if pin == True and len(check) > 0:
+            # no movement possible
+            return []
+        elif len(check) == 1:
+            # king is in check -> only moves that block the attack path are valid
+            attackerLocation = check[0]
+            kingLocation = board.kingLocation[self.color]
+            blockingLocations = Location.getLocationsOnPath(kingLocation, attackerLocation)
+            blockingLocations.append(attackerLocation)      # capturing the attacker would solve the problem, too
+            return list(set(blockingLocations) & set(moveCandidates))
+        elif pin == True and self.identifier.upper() == 'N':
+            # shortcut to save executing time: a pinned knight can never move:
+            return []
+        elif pin == True:
+            # offsets from piece's point of view:
+            kingOffset = Location.getTupleOffset(self.currentSquare.id, board.kingLocation[self.color])
+            validMoves = []
+            if abs(kingOffset[0]) == abs(kingOffset[1]):
+                # diagonal attack path -> only movements on this path are allowed to not end up in check:
+                relIndex = 0      # index actually does not matter for diagonal attack paths, just for code reuse; you could as well use 1 here
+                allowedNominalOffsets = [Location.nominalizeTuple(kingOffset)]             
+            else:
+                # linear attack path -> only movements on this path are allowed to not end up in check:
+                relIndex = 0 if kingOffset[1] == 0 else 1
+                allowedNominalOffsets = tuple(ti/kingOffset[relIndex] for ti in kingOffset)
+            # movements in the opposite direction are also valid:
+            allowedNominalOffsets.append(tuple(-ti for ti in allowedNominalOffsets[0]))
+            # check if move candidates are on the attack path:
+            for move in moveCandidates:
+                offset = Location.getTupleOffset(self.currentSquare.id, move)
+                if tuple(ti/abs(offset[relIndex]) for ti in offset) in allowedNominalOffsets:
+                    # legal move on the attack path -> do nothing
+                    validMoves.append(move)
+            return validMoves
+        else:
+            return moveCandidates
 
 class King(Piece):
     def __init__(self, color: PieceColor) -> None:
@@ -198,17 +294,91 @@ class King(Piece):
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
         moveCandidates = Location.getLocationsFromOffsets(self.currentSquare.id, offsets)
-        # filter out move candidates with ally pieces 
+        # filter out move candidates with ally pieces and move candidates that would lead to a check:
         moveCandidates[:] = filterfalse(lambda candidate : \
-            True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else False, moveCandidates)
-        # TODO: check detection
-        # TODO: castling rights
+            True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else (
+                True if (len(self._locationUnderAttack(board, candidate, 1)) > 0) else False), moveCandidates)
+        # add castling rights:
+        if not self.isInCheck(board):
+            moveCandidates.extend(self._getCastlingRights(board))
         return moveCandidates
 
     def makeMove(self, board: Board, target: int) -> None:
-        # TODO: update castling rights
         self._switchSquaresAndCapture(board, target)
+        board.kingLocation[self.color] = target
+        board.removeCastlingRights(self.color, 'KQ')
+        # TODO castling: move king, too
+
+    def isInCheck(self, board: Board) -> List[int]:
+        """ returns List of locations of attacking opponents or empty list, if not in check """
+        return self._locationUnderAttack(board, self.currentSquare.id)
+
+    def _locationUnderAttack(self, board: Board, location: int, cap: int = 2) -> List[int]:
+        """ This function checks if a location is under attack by an opponent piece and 
+            returns the locations of attacking opponents
+            hint: at the moment, the returned list is capped at a length of 2 to save executing time
+        """
+        attackerLocations = []
+        # 1) the "just check one field"s: Knight, Pawn, King 
+        oneSquareAttackers = {}
+        oppPawnRankOffset = 1 if self.color == PieceColor.WHITE else -1 
+        oneSquareAttackers['N'] = [(-2,1),(-1,2),(1,2),(2,1),(2,-1),(1,-2),(-1,-2),(-2,-1)] 
+        oneSquareAttackers['P'] = [(-1,oppPawnRankOffset),(1,oppPawnRankOffset)]
+
+        for attacker in oneSquareAttackers:
+            attackerLocs = Location.getLocationsFromOffsets(location, oneSquareAttackers[attacker])
+            for attackerLoc in attackerLocs:
+                if board.squares[attackerLoc].isOccupied and board.squares[attackerLoc].currentPiece.color != self.color and board.squares[attackerLoc].currentPiece.identifier.upper() == attacker:
+                    attackerLocations.append(attackerLoc)
+                    if len(attackerLocations) >= cap:
+                        # save executing time since more than 2 attackers make no difference for the game logic
+                        return attackerLocations
         
+        # 2) the "check the whole attack path"s: Queen, Rook, Bishop
+        pathAttackers = {}
+        pathAttackers['B'] = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+        pathAttackers['R'] = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        for attacker in pathAttackers:
+            for nominalOffset in pathAttackers[attacker]:
+                next = Location.getLocationsFromOffsets(location, [nominalOffset])
+                while next:
+                    next = next[0]
+                    if board.squares[next].isOccupied:
+                        if board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in [attacker, 'Q']:
+                            attackerLocations.append(next)
+                            if len(attackerLocations) >= cap:
+                                # save executing time since more than 2 attackers make no difference for the game logic
+                                return attackerLocations
+                        # if one square is occupied, that means we found the attacker or there is no more risk:
+                        break
+                    next = Location.getLocationsFromOffsets(next, [nominalOffset])
+        return attackerLocations
+
+    def _getCastlingRights(self, board: Board) -> List[int]:
+        fen = set(board.fen.castlingAvailability)
+        options = list(fen & set('KQ')) if self.color == PieceColor.WHITE else list(fen & set('kq'))
+        if len(options) == 0:
+            return []
+        options = (option.upper() for option in options)
+        rank = 0 if self.color == PieceColor.WHITE else 7
+        castlingRights = []
+        # add kingside castling -> if f/g are not under attack (file 5,6) and f/g are not occupied
+        if ('K' in options) and \
+            (len(self._locationUnderAttack(board, Location.tupleToAbsoluteSq((5, rank)))) == 0) and \
+            (len(self._locationUnderAttack(board, Location.tupleToAbsoluteSq((6, rank)))) == 0) and \
+            (board.squares[Location.tupleToAbsoluteSq((5, rank))].isOccupied == False) and \
+            (board.squares[Location.tupleToAbsoluteSq((6, rank))].isOccupied == False):
+            castlingRights.append(Location.tupleToAbsoluteSq((6, rank)))
+        # add queenside castling -> if c/d are not under attack (file 2/3) and b, c, d are not occupied
+        if ('Q' in options) and \
+            (len(self._locationUnderAttack(board, Location.tupleToAbsoluteSq((2, rank)))) == 0) and \
+            (len(self._locationUnderAttack(board, Location.tupleToAbsoluteSq((3, rank)))) == 0) and \
+            (board.squares[Location.tupleToAbsoluteSq((1, rank))].isOccupied == False) and \
+            (board.squares[Location.tupleToAbsoluteSq((2, rank))].isOccupied == False) and \
+            (board.squares[Location.tupleToAbsoluteSq((3, rank))].isOccupied == False):
+            castlingRights.append(Location.tupleToAbsoluteSq((2, rank)))
+        return castlingRights
 
 class Queen(Piece):
     def __init__(self, color: PieceColor) -> None:
@@ -217,8 +387,7 @@ class Queen(Piece):
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
         moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
-        # TODO: pinned check
-        return moveCandidates
+        return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
         self._switchSquaresAndCapture(board, target)
@@ -230,11 +399,16 @@ class Rook(Piece):
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,0), (1,0), (0, -1), (0, 1)]
         moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
-        # TODO: pinned check
-        return moveCandidates
+        return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
-        # TODO: update castling rights
+        # update castling rights
+        location = Location.absoluteSqToTuple(self.currentSquare.id)[0]
+        defaultRank = 0 if self.color == PieceColor.WHITE else 7
+        if location == (0, defaultRank):
+            board.removeCastlingRights(self.color, 'Q')
+        elif location == (7, defaultRank):
+            board.removeCastlingRights(self.color, 'K')
         self._switchSquaresAndCapture(board, target)
 
 class Bishop(Piece):
@@ -244,8 +418,7 @@ class Bishop(Piece):
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1)]
         moveCandidates = self._getMoveCandidatesFromOffsets(board, offsets)
-        # TODO: pinned check
-        return moveCandidates
+        return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
         self._switchSquaresAndCapture(board, target)
@@ -260,7 +433,7 @@ class Knight(Piece):
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         moveCandidates[:] = filterfalse(lambda candidate : \
             True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else False, moveCandidates)
-        return moveCandidates
+        return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
         self._switchSquaresAndCapture(board, target)
@@ -292,13 +465,27 @@ class Pawn(Piece):
             True if (Location.getFileOffset(self.currentSquare.id, candidate) != 0 and (board.squares[candidate].isOccupied == False or board.squares[candidate].currentPiece.color == self.color)) else (
                 True if (Location.getFileOffset(self.currentSquare.id, candidate) == 0 and board.squares[candidate].isOccupied) else False
             ), moveCandidates)
-        # TODO: if square in front of the pawn is blocked, the next square (offset 2) is also not a valid move 
-        # TODO: en passant
-        return moveCandidates
+        # if square in front of the pawn is blocked, the next square (rank offset 2) is also not a valid move :
+        if offsets[0] not in [Location.getTupleOffset(candidate, self.currentSquare.id) for candidate in moveCandidates]:
+            moveCandidates[:] = filterfalse(lambda candidate : \
+                True if (abs(Location.getRankOffset(self.currentSquare.id, candidate)) == 2) else False, moveCandidates)
+        # add en passant moves (if applicable):
+        if board.fen.enPassantTarget != '-':
+            target = Location.algebraicSqToAbsoluteSq(board.fen.enPassantTarget)
+            if target in Location.getLocationsFromOffsets(currentLocation, offsets):
+                moveCandidates.append(target)
+        return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
-        # TODO: update en passant rights --> maybe in switchSquaresAndCapture since en passant rights are gone with every movement
+        source = self.currentSquare.id
         self._switchSquaresAndCapture(board, target)
+        # update en passant rights:
+        if abs(Location.getRankOffset(source, target)) == 2:
+            if self.color == PieceColor.WHITE:
+                skipped = source - 8
+            else:
+                skipped = source + 8
+            board.fen.enPassantTarget = Location.absoluteSqToAlgebraicSq(skipped)
 
 
 class Square:
@@ -354,6 +541,10 @@ class Location:
         """ tuple to absolute notation, e.g. (7,7) -> 7; (4,3) -> 36 """
         return tpl[0] + (7 - tpl[1]) * 8
 
+    def absoluteSqToAlgebraicSq(absoluteSq: int) -> str:
+        """ absolute to algebraic notation, e.g. 7 -> 'h8'; 36 -> 'e4' """
+        return Location.tupleToAlgebraicSq(Location.absoluteSqToTuple(absoluteSq))
+
     def getLocationsFromOffsets(current: int, offsets: List[Tuple[int,int]]) -> List[int]:
         locations = []
         currentTpl = Location.absoluteSqToTuple(current)
@@ -370,6 +561,41 @@ class Location:
 
     def getRankOffset(current: int, target: int) -> int:
         return Location.absoluteSqToTuple(current)[1] - Location.absoluteSqToTuple(target)[1]
+
+    def getTupleOffset(current: int, target: int) -> Tuple[int, int]:
+        # returns a (file, rank) offset tuple
+        return (Location.getFileOffset(current, target), Location.getRankOffset(current, target))
+
+    def nominalizeTuple(tpl: Tuple[int, int]) -> Tuple[int, int]:
+        # nominalizes tpl (-> every element will have the absolute value 1 or 0):
+        return tuple((int(ti/abs(ti)) if abs(ti) != 0 else 0) for ti in tpl)
+
+    def getLocationsOnPath(loc1: int, loc2: int) -> List[int]:
+        # returns a list of locations on the path between loc1 and loc2
+
+        # TODO refactoring idea: where we call this method, the attacker location is explicitly appended to the List afterwards;
+        # in this method itself, we explicitly exclude the attacker's (or king's) location (i == 0) -> if there is no other 
+        # use for this method, we should change that. 
+        locations = []
+        offset = Location.getTupleOffset(loc1, loc2)
+        tpl1 = Location.absoluteSqToTuple(loc1)
+        tpl2 = Location.absoluteSqToTuple(loc2)
+        if not ((abs(offset[0]) == abs(offset[1])) or (0 in offset)):
+            # no direct path -> return empty list
+            return []
+        # diagonal path/linear path:
+        relevantIndex = 1 if offset[0] == 0 else 0
+        nominalOffset = Location.nominalizeTuple(offset)
+        for i in range(abs(offset[relevantIndex])):
+            if i == 0:
+                continue
+            loc = (tpl2[0] + i * nominalOffset[0], tpl2[1] + i * nominalOffset[1])
+            if loc == tpl1:
+                break
+            locations.append(Location.tupleToAbsoluteSq(loc))
+        return locations
+
+
 
 
 """
