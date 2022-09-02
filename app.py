@@ -58,7 +58,8 @@ def gamestate():
             response['moveMade'] = int(board.makeMove(source, target))
             dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
             board = Board.fromString(str(board))
-            board.opponent.makeMove(board)
+            generateMove = board.opponent.generateMove(board)
+            board.makeMove(generateMove[0], generateMove[1], True)
             dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
         else:
             response['moveMade'] = 0

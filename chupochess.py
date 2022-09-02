@@ -145,7 +145,7 @@ class Chupponnent:
     def __init__(self) -> None:
         pass
 
-    def makeMove(self, board: Board) -> None:
+    def generateMove(self, board: Board) -> Tuple[int, int]:
         # TODO
         # just for getting everything else on track: at the moment, this only selects a random black piece and (also randomly) one
         # of its valid moves and does this move without any intelligence -> this is only a mock up 
@@ -162,7 +162,11 @@ class Chupponnent:
         if len(moves) > 0: 
             moveId = randint(0, len(moves) - 1)
             piece = board.pieces[PieceColor.BLACK][pieceId]
-            board.makeMove(piece.currentSquare.id, moves[moveId], True)
+            source = piece.currentSquare.id
+            target = moves[moveId]
+            return (source, target)
+        else: 
+            return None
 
 
 class Piece:
