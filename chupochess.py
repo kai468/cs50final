@@ -6,9 +6,6 @@ from typing_extensions import Self
 class PieceColor(Enum):
     WHITE = 0
     BLACK = 1
-    def Not(self):
-        # TODO: refactoring -> is .Not() still required or != comparison sufficient? 
-        return PieceColor(not bool(self.value))
 
 class FEN:
     """ https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation """
@@ -42,6 +39,7 @@ class Board:
         self.kingLocation = {}
         pieces = PieceFactory.getPieces(self.fen)
         self.opponent = Chupponnent()
+        self.stat = 0
         for loc in range(64):
             self.squares[loc] = Square(loc)
             if loc in pieces:
@@ -49,6 +47,7 @@ class Board:
                 self.pieces[pieces[loc].color].append(pieces[loc])
                 if pieces[loc].identifier.upper() == 'K':
                     self.kingLocation[pieces[loc].color] = loc
+                self.stat = self.stat + pieces[loc].value if pieces[loc].color == PieceColor.WHITE else self.stat - pieces[loc].value
 
     @classmethod
     def startingPosition(cls):
@@ -85,13 +84,18 @@ class Board:
     def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> bool:
         # returns true/false whether move was made successfully
         if target in self.getMoves(source, chupponnentMove):
+            # update halfmove clock: 
+            if self.squares[target].isOccupied or self.squares[source].currentPiece.identifier.upper() == 'P':
+                self.fen.halfmoveClock = '0'
+            else:
+                self.fen.halfmoveClock = str(int(self.fen.halfmoveClock) + 1)
             self.squares[source].currentPiece.makeMove(self, target)
             # update FEN for successful move:
             # 1) piece placement: 
             self.fen.piecePlacement = ''
             emptySquares = 0 
             for loc in range(64):
-                if loc % 8 == 0:
+                if loc % 8 == 0 and loc > 0 :
                     if emptySquares != 0 :
                         self.fen.piecePlacement += str(emptySquares)
                         emptySquares = 0
@@ -106,7 +110,6 @@ class Board:
                     self.fen.piecePlacement += str(self.squares[loc].currentPiece)
             # 2) active color: 
             self.fen.activeColor = 'b' if self.fen.activeColor == 'w' else 'w'
-            # 3) TODO: castling rights, en passant, half moves
             # move count: 
             if self.fen.activeColor == 'w':
                 self.fen.fullMoveNumber = str(int(self.fen.fullMoveNumber) + 1)  # increase full move count after black's move
@@ -117,6 +120,7 @@ class Board:
 
     def removePiece(self, piece: object) -> None:
         if not piece: return
+        self.stat = self.stat - piece.value if piece.color == PieceColor.WHITE else self.stat + piece.value
         self.pieces[piece.color].remove(piece)
 
     def getPGN(self) -> str:
@@ -181,6 +185,7 @@ class Piece:
         board.squares[target].set(self)
         # update en passant rights:
         board.fen.enPassantTarget = '-'
+    
 
     def _getMoveCandidatesFromOffsets(self, board: Board, offsets: List[Tuple[int, int]]) -> List[int]:
         moveCandidates = []
@@ -304,10 +309,16 @@ class King(Piece):
         return moveCandidates
 
     def makeMove(self, board: Board, target: int) -> None:
+        source = self.currentSquare.id
         self._switchSquaresAndCapture(board, target)
         board.kingLocation[self.color] = target
         board.removeCastlingRights(self.color, 'KQ')
-        # TODO castling: move king, too
+        # castling: move rook, too
+        if abs(Location.getFileOffset(source, target)) > 1:
+            rank = 0 if self.color == PieceColor.WHITE else 7
+            file = 0 if Location.absoluteSqToTuple(target)[0] == 2 else 7
+            tarFile = 3 if Location.absoluteSqToTuple(target)[0] == 2 else 5
+            board.squares[Location.tupleToAbsoluteSq((file, rank))].currentPiece.makeMove(board, Location.tupleToAbsoluteSq((tarFile, rank)))
 
     def isInCheck(self, board: Board) -> List[int]:
         """ returns List of locations of attacking opponents or empty list, if not in check """
@@ -449,6 +460,12 @@ class Pawn(Piece):
             return True
         else:
             return False
+
+    def _isPawnPromotion(self, target: int) -> bool:
+        if self.color == PieceColor.WHITE:
+            return (target <= 7)
+        else:
+            return (target >= 56)
     
     def getValidMoves(self, board: Board) -> List[int]:
         currentLocation = self.currentSquare.id
@@ -479,6 +496,15 @@ class Pawn(Piece):
     def makeMove(self, board: Board, target: int) -> None:
         source = self.currentSquare.id
         self._switchSquaresAndCapture(board, target)
+        # TODO: pawn promotion (+ remember to update board.stat!)
+        if self._isPawnPromotion(target):
+            # remove self from target
+            board.squares[target].reset()
+            board.removePiece(self)
+            promotedPiece = Queen(self.color)
+            board.squares[target].set(promotedPiece)
+            board.stat = board.stat + promotedPiece.value if promotedPiece.color == PieceColor.WHITE else board.stat - promotedPiece.value
+            board.pieces[promotedPiece.color].append(promotedPiece)
         # update en passant rights:
         if abs(Location.getRankOffset(source, target)) == 2:
             if self.color == PieceColor.WHITE:
