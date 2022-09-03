@@ -17,6 +17,14 @@ def startingPosition():
 
 #### Tests #####
 
+@pytest.mark.parametrize("ext_fen, expected_stat", [
+    ('1B6/6P1/4Nk2/8/2p5/8/PPP1P1PP/2KR1B1R w - - 1 40 0', 25),
+    ('n1br4/6Q1/2Nq4/5p2/3P1k2/8/P1P3pP/Rq2K3 w - - 0 32 0', -10),
+    ('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 0', 0),
+])
+def test_board_stat(ext_fen, expected_stat):
+    board = Board.fromString(ext_fen)
+    assert board.stat == expected_stat
 
 
 @pytest.mark.parametrize("ext_fen, source, target, expected_ext_fen", [
@@ -32,16 +40,6 @@ def test_pawn_promotion(ext_fen, source, target, expected_ext_fen):
     board = Board.fromString(ext_fen)
     board.makeMove(source, target, True)
     assert str(board) == expected_ext_fen
-
-
-"""
-@pytest.mark.parametrize("extended_fen, expected_result", [
-    ('FEN', 55),
-    ('fen2', 13),
-])
-def test_board_stat(extended_fen, expected_result):
-    assert Board.fromString(extended_fen).stat == expected_result
-"""
 
 
 def test_without_fixture():
