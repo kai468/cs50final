@@ -51,7 +51,7 @@ def test_king_movement():
     assert 12 in validMoves    
 
 def test_locationUnderAttack():
-    board = Board.fromString('r2K4/3k1PB1/8/2pp4/n6r/5b2/P1PP2PP/RN1Q3R w - - 1 45 0')
+    board = Board.fromString('r2K2B1/5PB1/8/2pp3k/8/8/8/8 w - - 1 45 0')
     king = board.squares[3].currentPiece
     assert king._locationUnderAttack(board, 4) == [0]
 
