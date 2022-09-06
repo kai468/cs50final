@@ -361,7 +361,7 @@ class King(Piece):
                 next = Location.getLocationsFromOffsets(location, [nominalOffset])
                 while next:
                     next = next[0]
-                    if board.squares[next].isOccupied and next != self.currentSquare.id:
+                    if board.squares[next].isOccupied and board.squares[next].currentPiece.identifier != self.identifier:
                         if board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in [attacker, 'Q']:
                             attackerLocations.append(next)
                             if len(attackerLocations) >= cap:
@@ -628,33 +628,14 @@ class Location:
         return locations
 
 
-
-
-"""
-class LocationDictionary(dict):
-    def __contains__(self, __o: Location) -> bool:
-        # must be overwritten to make 'in' operator work for Location comparison
-        for key in self.keys():
-            if key == __o: 
-                return True
-        return False
-
-    def __getitem__(self, __k: Location) -> object:
-        # must be overwritten to make getting an item via dict[key] possible
-        for key in self.keys():
-            if key == __k:
-                return super().__getitem__(key)
-"""
-
-
 class PieceFactory:
     switcher = {
-        'p' : Pawn,
-        'b' : Bishop,
-        'n' : Knight,
-        'r' : Rook,
-        'q' : Queen,
-        'k' : King
+        'P' : Pawn,
+        'B' : Bishop,
+        'N' : Knight,
+        'R' : Rook,
+        'Q' : Queen,
+        'K' : King
     }
 
     def getPieces(fen: FEN) -> dict:
@@ -665,7 +646,7 @@ class PieceFactory:
                 location += int(c)
             elif c != '/':
                 color = PieceColor.WHITE if c.isupper() else PieceColor.BLACK
-                cls = PieceFactory.switcher.get(c.lower())
+                cls = PieceFactory.switcher.get(c.upper())
                 pieces[location] = cls(color)
                 location += 1
         return pieces
