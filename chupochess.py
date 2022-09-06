@@ -123,7 +123,7 @@ class Board:
         self.stat = self.stat - piece.value if piece.color == PieceColor.WHITE else self.stat + piece.value
         self.pieces[piece.color].remove(piece)
 
-    def getPGN(self) -> str:
+    def getPGN(self, extendedFens: List[str]) -> str:
         # TODO
         pass
 
@@ -300,9 +300,11 @@ class King(Piece):
     def __init__(self, color: PieceColor) -> None:
         Piece.__init__(self, color, 'K', 0)
 
-    def getValidMoves(self, board: Board) -> List[int]:
+    def getValidMoves(self, board: Board, currentLocation: int = -1) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
-        moveCandidates = Location.getLocationsFromOffsets(self.currentSquare.id, offsets)
+        if currentLocation == -1:
+            currentLocation = self.currentSquare.id
+        moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         # filter out move candidates with ally pieces and move candidates that would lead to a check:
         moveCandidates[:] = filterfalse(lambda candidate : \
             True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else (
@@ -359,7 +361,7 @@ class King(Piece):
                 next = Location.getLocationsFromOffsets(location, [nominalOffset])
                 while next:
                     next = next[0]
-                    if board.squares[next].isOccupied:
+                    if board.squares[next].isOccupied and next != self.currentSquare.id:
                         if board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in [attacker, 'Q']:
                             attackerLocations.append(next)
                             if len(attackerLocations) >= cap:
@@ -500,7 +502,7 @@ class Pawn(Piece):
     def makeMove(self, board: Board, target: int) -> None:
         source = self.currentSquare.id
         self._switchSquaresAndCapture(board, target)
-        # TODO: pawn promotion (+ remember to update board.stat!)
+        # pawn promotion - TODO: selective (atm only queens are possible)
         if self._isPawnPromotion(target):
             # remove self from target
             board.squares[target].reset()

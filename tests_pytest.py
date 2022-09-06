@@ -41,6 +41,19 @@ def test_pawn_promotion(ext_fen, source, target, expected_ext_fen):
     board.makeMove(source, target, True)
     assert str(board) == expected_ext_fen
 
+def test_king_movement():
+    board = Board.fromString('r2K2B1/5PB1/8/2pp3k/8/8/8/8 w - - 1 45 0')
+    validMoves = board.getMoves(3)
+    # only valid move for white king (on D8) should be to C7
+    assert len(validMoves) == 3
+    assert 10 in validMoves
+    assert 11 in validMoves
+    assert 12 in validMoves    
+
+def test_locationUnderAttack():
+    board = Board.fromString('r2K4/3k1PB1/8/2pp4/n6r/5b2/P1PP2PP/RN1Q3R w - - 1 45 0')
+    king = board.squares[3].currentPiece
+    assert king._locationUnderAttack(board, 4) == [0]
 
 def test_without_fixture():
     assert True
