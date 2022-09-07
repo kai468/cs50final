@@ -1,7 +1,7 @@
 from itertools import filterfalse
 from typing import List, Tuple
 from enum import Enum
-from typing_extensions import Self
+import re
 
 class PieceColor(Enum):
     WHITE = 0
@@ -91,7 +91,7 @@ class Board:
                 self.fen.halfmoveClock = str(int(self.fen.halfmoveClock) + 1)
             self.squares[source].currentPiece.makeMove(self, target)
             # update FEN for successful move:
-            # 1) piece placement: 
+            # 1) piece placement: fen
             self.fen.piecePlacement = ''
             emptySquares = 0 
             for loc in range(64):
@@ -108,6 +108,8 @@ class Board:
                     self.fen.piecePlacement += str(emptySquares)
                     emptySquares = 0
                     self.fen.piecePlacement += str(self.squares[loc].currentPiece)
+                if loc == 63 and emptySquares > 0:
+                    self.fen.piecePlacement += str(emptySquares)
             # 2) active color: 
             self.fen.activeColor = 'b' if self.fen.activeColor == 'w' else 'w'
             # move count: 
@@ -168,6 +170,113 @@ class Chupponnent:
         else: 
             return None
 
+class TrainingHelper:
+    def __init__(self) -> None:
+        pass
+
+    def pgnToFen(pgn: str) -> List[str]:
+        idx = pgn.rfind("]")
+        if idx == -1:
+            payload = pgn
+        else:
+            payload = pgn[idx+1:]
+        # delete comments:
+        payload = re.sub(r'\{.*\}', '', payload).strip()
+        # delete result (if applicable):
+        payload = re.sub(r'1/2-1/2', '', payload).strip()
+        payload = re.sub(r'\d{1}-\d{1}', '', payload).strip()
+        # convert to move list:
+        tmp = re.split(r'\d{1,3}\.', payload)        # we assume that a chess game never has more than 999 moves
+        movelist = []
+        for move in tmp:
+            if move.strip() != '':
+                movelist.append(move.strip())
+        board = Board.startingPosition()
+        fenlist = [str(board.fen)]
+        for move in movelist:
+            for black_moves, halfmove in enumerate(move.split(' ')):
+                fenlist.append(TrainingHelper._makeHalfmove(halfmove, bool(black_moves), board))
+        return fenlist
+
+    def _makeHalfmove(halfmove: str, black_moves: bool, board: Board) -> str:
+        """ makes the move and returns the FEN afterwards """
+        # Hint: The following conditions are partly more explicit than theoretically necessary; This is a
+        #       conscious decision to uncover errors/unhandled usecases and direct these to the ELSE statement.
+        if '-' in halfmove:
+            # castling:
+            color = PieceColor.BLACK if bool(black_moves) else PieceColor.WHITE
+            source = board.kingLocation[color]
+            if 'O-O-O' in halfmove:
+                # queenside (long)
+                target = 2 if bool(black_moves) else 58
+            else: 
+                # kingside (short)
+                target = 6 if bool(black_moves) else 62
+        elif '=' in halfmove:
+            # pawn promotion -> can be identified uniquely with everything before the equal sign:
+            # BUT (big TODO): since the chupochess engine only supports pawn promotion to a queen,
+            #                 we should make sure that the PGN data to feed the chupponnent with 
+            #                 later on does not contain any pawn promotions other than that!
+            return TrainingHelper._makeHalfmove(halfmove.split('=')[0], black_moves, board)
+        elif '+' in halfmove:
+            # move results in a check -> not really relevant for us
+            return TrainingHelper._makeHalfmove(halfmove.replace('+', ''), black_moves, board)
+        elif halfmove[0].islower() and 'x' in halfmove:
+            # pawn move with capture (includes en passant) -> source depends on departure file:
+            target = Location.algebraicSqToAbsoluteSq(halfmove.split('x')[1])
+            direction = -1 if black_moves else 1
+            srcFile = halfmove.split('x')[0]
+            tarFile = halfmove.split('x')[1][0]
+            if (srcFile < tarFile) == bool(direction + 1):     
+                source = target + (direction * 7)
+            else:
+                source = target + (direction * 9)
+        elif halfmove[0].islower():
+            # pawn move without capture:
+            direction = -1 if black_moves else 1
+            identifier = 'p' if black_moves else 'P'
+            target = Location.algebraicSqToAbsoluteSq(halfmove)
+            source = target + (direction * 8)
+            if board.squares[source].isOccupied == False or board.squares[source].currentPiece.identifier != identifier:
+                # pawn was moved 2 squares:
+                source = source + (direction * 8)
+        elif halfmove[0].isupper() and 'x' in halfmove:
+            # not-pawn move with capture
+            # at this point, the capture does not add any information to the SAN:
+            return TrainingHelper._makeHalfmove(halfmove.replace('x', ''), black_moves, board)
+        elif halfmove[0].isupper() and len(halfmove) == 3:
+            # unique move of not-pawn:
+            identifier = halfmove[0].lower() if black_moves else halfmove[0]
+            target = Location.algebraicSqToAbsoluteSq(halfmove[1:])
+            color = PieceColor.BLACK if black_moves else PieceColor.WHITE
+            for piece in board.pieces[color]:
+                if (piece.identifier == identifier) and (target in board.getMoves(piece.currentSquare.id, black_moves)):
+                    source = piece.currentSquare.id
+                    break
+        elif halfmove[0].isupper() and len(halfmove) == 4:
+            # additional information about departure file OR rank is given
+            identifier = halfmove[0].lower() if black_moves else halfmove[0]
+            color = PieceColor.BLACK if black_moves else PieceColor.WHITE
+            target = Location.algebraicSqToAbsoluteSq(halfmove[2:4]) 
+            if halfmove[1].isnumeric():
+                # rank is given: 
+                sources = Location.getLocationsOnRank(int(halfmove[1]))
+            else:
+                # file is given:
+                sources = Location.getLocationsOnFile(halfmove[1])
+            for piece in board.pieces[color]:
+                if (piece.identifier == identifier) and (piece.currentSquare.id in sources) and (target in board.getMoves(piece.currentSquare.id, black_moves)):
+                    source = piece.currentSquare.id
+                    break
+        elif halfmove[0].isupper() and len(halfmove) == 5:
+            # rank and file of the departure square are given (this only occurs in very rare cases but it is possible if e.g. 3 queens
+            # of one player are able to reach the same location)
+            source = Location.algebraicSqToAbsoluteSq(halfmove[1:3])
+            target = Location.algebraicSqToAbsoluteSq(halfmove[3:5]) 
+        else:
+            raise Exception("ERROR: Unknown move (SAN): " + halfmove)
+        board.makeMove(source, target, black_moves)
+        return str(board.fen)
 
 class Piece:
     def __init__(self, color: PieceColor, identifier: str, value: int) -> None:

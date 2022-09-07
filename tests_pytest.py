@@ -2,7 +2,7 @@
 # good read: https://realpython.com/pytest-python-testing/
 
 import pytest
-from chupochess import Board, Location
+from chupochess import Board, Location, TrainingHelper
 
 #### Fixtures #####
 
@@ -36,6 +36,17 @@ def test_board_stat(ext_fen, expected_stat):
 def test_locationsOnRank(rank, expected_locations):
     assert Location.getLocationsOnRank(rank) == expected_locations
 
+
+@pytest.mark.parametrize("pgn, expected_len, expected_last_fen", [
+    ('[Event "IBM Kasparov vs. Deep Blue Rematch"][Site "New York, NY USA"][Date "1997.05.11"][Round "6"][White "Deep Blue"][Black "Kasparov, Garry"][Opening "Caro-Kann: 4...Nd7"][ECO "B17"][Result "1-0"] 1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nd7 5.Ng5 Ngf6 6.Bd3 e6 7.N1f3 h6 8.Nxe6 Qe7 9.O-O fxe6 10.Bg6+ Kd8 {Kasparov schüttelt kurz den Kopf} 11.Bf4 b5 12.a4 Bb7 13.Re1 Nd5 14.Bg3 Kc8 15.axb5 cxb5 16.Qd3 Bc6 17.Bf5 exf5 18.Rxe7 Bxe7 19.c4 1-0', 38, 'r1k4r/p2nb1p1/2b4p/1p1n1p2/2PP4/3Q1NB1/1P3PPP/R5K1 b - c3 0 19'),
+    ('[Event "Varna ol (Men) fin-A"][Site "Varna"][Date "1962.??.??"][Round "10"][White "Botvinnik, Mikhail"][Black "Fischer, Robert James"[Result "1/2-1/2"][ECO "D98"][PlyCount "135"][EventDate "1962.09.16"][EventType "team"][EventRounds "11"][EventCountry "BUL"][Source "ChessBase"][SourceDate "1999.07.01"][WhiteTeam "Soviet Union"][BlackTeam "US of America"][WhiteTeamCountry "URS"][BlackTeamCountry "USA"]1. c4 g6 2. d4 Nf6 3. Nc3 d5 4. Nf3 Bg7 5. Qb3 dxc4 6. Qxc4 O-O 7. e4 Bg4 8.Be3 Nfd7 9. Be2 Nc6 10. Rd1 Nb6 11. Qc5 Qd6 12. h3 Bxf3 13. gxf3 Rfd8 14. d5 Ne5 15. Nb5 Qf6 16. f4 Ned7 17. e5 Qxf4 18. Bxf4 Nxc5 19. Nxc7 Rac8 20. d6 exd6 21. exd6 Bxb2 22. O-O Nbd7 23. Rd5 b6 24. Bf3 Ne6 25. Nxe6 fxe6 26. Rd3 Nc5 27.Re3 e5 28. Bxe5 Bxe5 29. Rxe5 Rxd6 30. Re7 Rd7 31. Rxd7 Nxd7 32. Bg4 Rc7 33.Re1 Kf7 34. Kg2 Nc5 35. Re3 Re7 36. Rf3+ Kg7 37. Rc3 Re4 38. Bd1 Rd4 39. Bc2 Kf6 40. Kf3 Kg5 41. Kg3 Ne4+ 42. Bxe4 Rxe4 43. Ra3 Re7 44. Rf3 Rc7 45. a4 Rc5 46. Rf7 Ra5 47. Rxh7 Rxa4 48. h4+ Kf5 49. Rf7+ Ke5 50. Rg7 Ra1 51. Kf3 b5 52.h5 Ra3+ 53. Kg2 gxh5 54. Rg5+ Kd6 55. Rxb5 h4 56. f4 Kc6 57. Rb8 h3+ 58. Kh2 a5 59. f5 Kc7 60. Rb5 Kd6 61. f6 Ke6 62. Rb6+ Kf7 63. Ra6 Kg6 64. Rc6 a4 65. Ra6 Kf7 66. Rc6 Rd3 67. Ra6 a3 68. Kg1 1/2-1/2', 136, '8/5k2/R4P2/8/8/p2r3p/8/6K1 b - - 1 68'),
+    ('[Event "Ischia ITA"][Site "Ischia 64/548"][Date "????.??.??"][Round "0"][White "Naumkin, Igor"][Black "Smirin, Ilia"][Result "0-1"][ECO "E90"][Opening "Kings Indian: 5.Nf3"]1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 Na6 7. O-O e5 8. d5 Nc5 9. Qc2 a5 10. Bg5 h6 11. Be3 b6 12. Nd2 Bg4 13. f3 Bd7 14. b3 Nh5 15. Rfe1 Bf6 16. Bxh6 Bg5 17. Bxg5 Qxg5 18. Nf1 f5 19. exf5 gxf5 20. a3 a4 21. b4 Nb3 22. Ra2 Rf7 23. g3 Kh8 24. Bd1 Rg8 25. Qb1 Qh4 26. Bxb3 axb3 27. Rg2 Qd4+ 28. Re3 f4 29. Ne2 Qxc4 30. gxf4 Rxg2+ 31. Kxg2 exf4 32. Re4 Qxd5 33. Kf2 Qg5 34. Ke1 Nf6 35. Qb2 Kg8 36. Rxf4 Bb5 37. Nfg3 Bxe2 38. Nxe2 Re7 39. Qxb3+ Kg7 40. Rc4 Qg1+ 41. Kd2 Qxh2 42. Qd3 c5 43. Rc1 Kf7 44. bxc5 bxc5 45. a4 Re5 46. Qb5 Qf2 47. Rc3 d5 {#R} 0-1', 95, '8/5k2/5n2/1Qppr3/P7/2R2P2/3KNq2/8 w - - 0 48')
+])
+def test_TrainingHelper_pgnToFen(pgn, expected_len, expected_last_fen):
+    """ source example PGN's: https://www.chess.com/library """
+    fenlist = TrainingHelper.pgnToFen(pgn)
+    assert len(fenlist) == expected_len
+    assert fenlist[-1] == expected_last_fen
 
 @pytest.mark.parametrize("file, expected_locations", [
     ('a', [0, 8, 16, 24, 32, 40, 48, 56]),
