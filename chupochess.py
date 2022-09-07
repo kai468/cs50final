@@ -501,6 +501,12 @@ class Pawn(Piece):
 
     def makeMove(self, board: Board, target: int) -> None:
         source = self.currentSquare.id
+        if board.fen.enPassantTarget != '-' and Location.algebraicSqToAbsoluteSq(board.fen.enPassantTarget) == target:
+            # en passant capture: remove the piece:
+            epCaptLoc = target + 8 if self.color == PieceColor.WHITE else target - 8
+            epCaptPiece = board.squares[epCaptLoc].currentPiece
+            board.squares[epCaptLoc].reset()
+            board.removePiece(epCaptPiece)
         self._switchSquaresAndCapture(board, target)
         # pawn promotion - TODO: selective (atm only queens are possible)
         if self._isPawnPromotion(target):

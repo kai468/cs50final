@@ -41,6 +41,13 @@ def test_pawn_promotion(ext_fen, source, target, expected_ext_fen):
     board.makeMove(source, target, True)
     assert str(board) == expected_ext_fen
 
+def test_enpassant_capture():
+    board = Board.fromString('rnbqkbnr/1ppppppp/p7/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 0')
+    board.makeMove(13, 29, True)    # black moves pawn from F7 to F5 
+    assert str(board) == 'rnbqkbnr/1pppp1pp/p7/4Pp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3 0'
+    board.makeMove(28, 21)    # white moves pawn from E5 to F6, en passant capturing black pawn on F5
+    assert str(board) == 'rnbqkbnr/1pppp1pp/p4P2/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3 0'
+
 def test_king_movement():
     board = Board.fromString('r2K2B1/5PB1/8/2pp3k/8/8/8/8 w - - 1 45 0')
     validMoves = board.getMoves(3)
