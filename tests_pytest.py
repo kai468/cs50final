@@ -26,6 +26,14 @@ def test_board_stat(ext_fen, expected_stat):
     board = Board.fromString(ext_fen)
     assert board.stat == expected_stat
 
+@pytest.mark.parametrize("ext_fen, expected_stat", [
+    ('1B6/6P1/4Nk2/8/2p5/8/PPP1P1PP/2KR1B1R w - - 1 40 0', 25),
+    ('n1br4/6Q1/2Nq4/5p2/3P1k2/8/P1P3pP/Rq2K3 w - - 0 32 0', -10),
+    ('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 0', 0),
+])
+def test_TrainingHelper_fenToStat(ext_fen, expected_stat):
+    assert TrainingHelper.fenToStat(ext_fen) == expected_stat
+
 
 @pytest.mark.parametrize("rank, expected_locations", [
     (1, [56, 57, 58, 59, 60, 61, 62, 63]),

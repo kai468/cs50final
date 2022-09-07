@@ -277,6 +277,27 @@ class TrainingHelper:
             raise Exception("ERROR: Unknown move (SAN): " + halfmove)
         board.makeMove(source, target, black_moves)
         return str(board.fen)
+    
+    def fenToStat(fen: str) -> int:
+    # for quick evaluation which player has more material
+        switcher = {
+            'P' : 1,
+            'N' : 3,
+            'B' : 3,
+            'R' : 5,
+            'Q' : 9,
+            'p' : -1,
+            'n' : -3,
+            'b' : -3,
+            'r' : -5,
+            'q' : -9
+        }
+        stat = 0 
+        for c in fen.split(' ')[0]:
+            if c.isnumeric() == False and c != '/':
+                stat += switcher.get(c, 0)
+        return stat
+
 
 class Piece:
     def __init__(self, color: PieceColor, identifier: str, value: int) -> None:
