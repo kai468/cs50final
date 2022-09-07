@@ -2,7 +2,7 @@
 # good read: https://realpython.com/pytest-python-testing/
 
 import pytest
-from chupochess import Board
+from chupochess import Board, Location
 
 #### Fixtures #####
 
@@ -25,6 +25,26 @@ def startingPosition():
 def test_board_stat(ext_fen, expected_stat):
     board = Board.fromString(ext_fen)
     assert board.stat == expected_stat
+
+
+@pytest.mark.parametrize("rank, expected_locations", [
+    (1, [56, 57, 58, 59, 60, 61, 62, 63]),
+    (2, [48, 49, 50, 51, 52, 53, 54, 55]),
+    (3, [40, 41, 42, 43, 44, 45, 46, 47]),
+    (8, [0, 1, 2, 3, 4, 5, 6, 7])
+])
+def test_locationsOnRank(rank, expected_locations):
+    assert Location.getLocationsOnRank(rank) == expected_locations
+
+
+@pytest.mark.parametrize("file, expected_locations", [
+    ('a', [0, 8, 16, 24, 32, 40, 48, 56]),
+    ('b', [1, 9, 17, 25, 33, 41, 49, 57]),
+    ('g', [6, 14, 22, 30, 38, 46, 54, 62]),
+    ('h', [7, 15, 23, 31, 39, 47, 55, 63])
+])
+def test_locationsOnFile(file, expected_locations):
+    assert Location.getLocationsOnFile(file) == expected_locations
 
 
 @pytest.mark.parametrize("ext_fen, source, target, expected_ext_fen", [

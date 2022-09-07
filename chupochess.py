@@ -633,6 +633,21 @@ class Location:
             locations.append(Location.tupleToAbsoluteSq(loc))
         return locations
 
+    def getLocationsOnFile(file: str) -> List[int]:
+        lst = []
+        lst.append(Location.algebraicSqToAbsoluteSq(file + '8'))
+        for i in range(7):
+            lst.append(lst[-1] + 8)
+        return lst
+
+    def getLocationsOnRank(rank: int) -> List[int]:
+        # CAUTION: 1-based to match SAN (rank is integer from 1 to 8)!
+        lst = []
+        lst.append(Location.algebraicSqToAbsoluteSq('a' + str(rank)))
+        for i in range(7):
+            lst.append(lst[-1] + 1)
+        return lst
+
 
 class PieceFactory:
     switcher = {
