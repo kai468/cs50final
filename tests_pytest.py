@@ -40,6 +40,10 @@ def test_TrainingHelper_fenToStat(ext_fen, expected_stat):
     ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 58, True),
     ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 61, True),
     ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 12, False),
+    ('8/8/6B1/8/4p3/3k4/8/4K3 w - - 0 1 0', 36, True),
+    ('8/8/8/8/3k4/4p3/8/4K1B1 w - - 0 1 0', 44, True),
+    ('7k/8/8/4r3/8/8/8/Q4K2 w - - 0 1 0', 28, True),
+    ('8/8/8/5p2/3P1k2/8/p5p1/Rq2K1N1 w - - 0 1 0', 56, False)
 ])
 def test_Piece_isPinned(ext_fen, source, expected_result):
     board = Board.fromString(ext_fen)

@@ -378,13 +378,14 @@ class Piece:
             # no pin possible
             return False
         next = Location.getLocationsFromOffsets(kingLocation, [offset])
+        potentialPin = False
         while next:
             next = next[0]
             if next == self.currentSquare.id:
-                pass            
+                potentialPin = True            
             elif board.squares[next].isOccupied and board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in attackers:
-                # attacker found:
-                return True
+                # attacker found -> if we already passed our piece (self), then it's a pin:
+                return potentialPin
             elif board.squares[next].isOccupied:
                 # king is protected by other ally or opponent piece:
                 return False
