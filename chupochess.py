@@ -364,20 +364,20 @@ class Piece:
         # check if self is on an "attack path" relative to king:
         if abs(fileOffset) == abs(rankOffset):
             # potential attackers: bishop and queen
-            offset = (int(fileOffset / abs(fileOffset)), int(rankOffset / abs(rankOffset)))
+            offset = (-int(fileOffset / abs(fileOffset)), -int(rankOffset / abs(rankOffset)))
             attackers = ['Q', 'B']
         elif fileOffset == 0:
             # potential attackers: rook and queen
-            offset = (0, int(rankOffset / abs(rankOffset)))
+            offset = (0, -int(rankOffset / abs(rankOffset)))
             attackers = ['Q', 'R']
         elif rankOffset == 0:
             # potential attackers: rook and queen
-            offset = (int(fileOffset / abs(fileOffset)), 0)
+            offset = (-int(fileOffset / abs(fileOffset)), 0)
             attackers = ['Q', 'R']
         else:
             # no pin possible
             return False
-        next = Location.getLocationsFromOffsets(self.currentSquare.id, [offset])
+        next = Location.getLocationsFromOffsets(kingLocation, [offset])
         while next:
             next = next[0]
             if next == self.currentSquare.id:
@@ -429,7 +429,7 @@ class Piece:
             else:
                 # linear attack path -> only movements on this path are allowed to not end up in check:
                 relIndex = 0 if kingOffset[1] == 0 else 1
-                allowedNominalOffsets = tuple(ti/kingOffset[relIndex] for ti in kingOffset)
+                allowedNominalOffsets = [tuple(ti/kingOffset[relIndex] for ti in kingOffset)]
             # movements in the opposite direction are also valid:
             allowedNominalOffsets.append(tuple(-ti for ti in allowedNominalOffsets[0]))
             # check if move candidates are on the attack path:

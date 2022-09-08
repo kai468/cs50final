@@ -34,6 +34,17 @@ def test_board_stat(ext_fen, expected_stat):
 def test_TrainingHelper_fenToStat(ext_fen, expected_stat):
     assert TrainingHelper.fenToStat(ext_fen) == expected_stat
 
+@pytest.mark.parametrize("ext_fen, source, expected_result", [
+    ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 42, True),
+    ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 52, True),
+    ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 58, True),
+    ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 61, True),
+    ('4k3/4B3/8/b3r3/8/2R5/4N3/r1Q1KP1q w - - 0 1 0', 12, False),
+])
+def test_Piece_isPinned(ext_fen, source, expected_result):
+    board = Board.fromString(ext_fen)
+    assert board.squares[source].currentPiece._isPinned(board) == expected_result
+
 
 @pytest.mark.parametrize("rank, expected_locations", [
     (1, [56, 57, 58, 59, 60, 61, 62, 63]),
