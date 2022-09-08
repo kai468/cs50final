@@ -3,6 +3,9 @@ from typing import List, Tuple
 from enum import Enum
 import re
 
+
+# TODO: End-Of-Game logic!
+
 class PieceColor(Enum):
     WHITE = 0
     BLACK = 1
@@ -142,6 +145,15 @@ class Board:
             newFen = '-'
         self.fen.castlingAvailability = newFen
 
+    def getAllMoves(self, color: PieceColor):
+        """ returns a List of all possible moves for all pieces of the input color (Format: Tuple[source: int, target: int]) """
+        lst = []
+        for piece in self.pieces[color]:
+            validMoves = self.getMoves(piece.currentSquare.id, True)
+            for move in validMoves:
+                lst.append((piece.currentSquare.id, move))
+        return lst
+
 
 class Chupponnent:
     def __init__(self) -> None:
@@ -169,6 +181,10 @@ class Chupponnent:
             return (source, target)
         else: 
             return None
+
+    def simulateMoves(depth: int):
+        # TODO!
+        pass
 
 class TrainingHelper:
     def __init__(self) -> None:
