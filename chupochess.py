@@ -436,7 +436,7 @@ class Piece:
             # check if move candidates are on the attack path:
             for move in moveCandidates:
                 offset = Location.getTupleOffset(self.currentSquare.id, move)
-                if tuple(ti/abs(offset[relIndex]) for ti in offset) in allowedNominalOffsets:
+                if (tuple(ti/abs(offset[relIndex]) for ti in offset) if (abs(offset[relIndex]) != 0) else (0,0)) in allowedNominalOffsets:
                     # legal move on the attack path -> do nothing
                     validMoves.append(move)
             return validMoves
