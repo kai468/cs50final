@@ -1,10 +1,9 @@
 from itertools import filterfalse
 from typing import List, Tuple
+from anytree import NodeMixin
 from enum import Enum
 import re
 
-
-# TODO: End-Of-Game logic!
 
 class PieceColor(Enum):
     WHITE = 0
@@ -44,8 +43,8 @@ class FEN:
             ' ' + self.enPassantTarget + ' ' + str(self.halfmoveClock) + \
             ' ' + str(self.fullMoveNumber)
 
-class Board:
-    def __init__(self, fen: FEN, unmakeCounter: int) -> None:
+class Board(NodeMixin):
+    def __init__(self, fen: FEN, unmakeCounter: int, parent=None, children=None) -> None:
         self.fen = fen
         self.squares = {}
         self.unmakeCounter = unmakeCounter
@@ -65,20 +64,26 @@ class Board:
                 if pieces[loc].identifier.upper() == 'K':
                     self.kingLocation[pieces[loc].color] = loc
                 self.stat = self.stat + pieces[loc].value if pieces[loc].color == PieceColor.WHITE else self.stat - pieces[loc].value
+        self.parent = parent
+        if children:
+            self.children = children
 
     @classmethod
     def startingPosition(cls):
         return cls(FEN.startingPosition(), 0)
 
     @classmethod
-    def fromString(cls, string: str):
+    def fromString(cls, string: str, parent=None, children=None):
         # split 'extended FEN' into FEN and unmake counter:
         i = string.rindex(' ')
-        return cls(FEN(string[:i]), int(string[i+1:]))
+        return cls(FEN(string[:i]), int(string[i+1:]), parent, children)
 
     def __str__(self) -> str:
         # extended FEN: FEN + unmake counter:
         return str(self.fen) + ' ' + str(self.unmakeCounter)
+
+    def __eq__(self, __o: object) -> bool:
+        return str(self) == str(__o)
 
     def getOutput(self) -> dict:
         output = {}
@@ -242,6 +247,10 @@ class Chupponnent:
         else: 
             return None
 
+    def generateSmartMove(self, board: Board) -> Tuple[int, int]:
+        # TODO
+        return None
+
     def simulateMoves(depth: int):
         # TODO!
         pass
@@ -288,12 +297,14 @@ class TrainingHelper:
             else: 
                 # kingside (short)
                 target = 6 if bool(black_moves) else 62
-        elif '=' in halfmove:
+        elif '=Q' in halfmove:
             # pawn promotion -> can be identified uniquely with everything before the equal sign:
-            # BUT (big TODO): since the chupochess engine only supports pawn promotion to a queen,
-            #                 we should make sure that the PGN data to feed the chupponnent with 
-            #                 later on does not contain any pawn promotions other than that!
             return TrainingHelper._makeHalfmove(halfmove.split('=')[0], black_moves, board)
+        elif '=' in halfmove:
+            # since the chupochess engine only supports pawn promotion to a queen,
+            # we should make sure that the PGN data to feed the chupponnent with 
+            # later on does not contain any pawn promotions other than that!
+            raise Exception("ERROR: Unknown pawn promotion move (SAN): " + halfmove)
         elif '+' in halfmove:
             # move results in a check -> not really relevant for us
             return TrainingHelper._makeHalfmove(halfmove.replace('+', ''), black_moves, board)
@@ -387,6 +398,14 @@ class Piece:
 
     def __str__(self) -> str:
         return self.identifier
+
+    def equals(self, _o: object) -> bool:
+        # The reason we do not use an overwritten __eq__ here is that List.remove() uses that 
+        # and we use .remove() for a list of pieces which leads to problems when there is more
+        # than one piece with the same identifier. Plus, additionally comparing the .currentSquare
+        # would probably lead to a core dump since Square.__eq__() calls this method 
+        return self.identifier == _o.identifier
+    
 
     def _switchSquaresAndCapture(self, board: Board, target: int) -> None:
         self.currentSquare.reset()
@@ -752,7 +771,13 @@ class Square:
         self.isOccupied = True
         self.currentPiece = piece
         piece.currentSquare = self
-
+    
+    def __eq__(self, __o: object) -> bool:
+        if self.id == __o.id and self.isOccupied == __o.isOccupied and ((self.isOccupied == False ) or (self.currentPiece.equals(__o.currentPiece))):
+            return True
+        else:
+            return False
+    
 
 class Location:
     def __init__(self) -> None:

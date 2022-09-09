@@ -7,16 +7,18 @@ db.execute("DELETE FROM active_games;")
 db.execute("DELETE FROM game_state;")
 """
 
-from chupochess import Board, PieceColor, Location
+from chupochess import Board, Piece, PieceColor, Location
 from anytree import NodeMixin, RenderTree
-from typing import Tuple
+from typing import Tuple, List
 
 
 # very helpful website for analysing positions and debugging: https://nextchessmove.com/
 
 ext_fen = '8/8/8/5p2/3P1k2/8/pp4p1/R3K1N1 b - - 0 1 0'
 
+
 board = Board.fromString(ext_fen)
+
 #board = Board.startingPosition()
 # choose statistically best move (from stat only):
 # assuming white always makes the 'smartest' move (that is, bringing it in the best position for the given exploration depth)
@@ -40,6 +42,8 @@ board = Board.fromString(ext_fen)
 #   of white - that is, if there is one black move leading to fewer good white moves than 
 #   the other, choose that one)   
 
+
+
 class Halfmove(NodeMixin):
     def __init__(self, color: PieceColor, halfmove: Tuple[int,int], initFen: str, parent=None, children=None) -> None:
         super(Halfmove, self).__init__()
@@ -48,8 +52,8 @@ class Halfmove(NodeMixin):
         self.board = Board.fromString(initFen)
         initStat = self.board.stat
         self.board.makeMove(halfmove[0], halfmove[1], True)
-        self.initFen = initFen
         self.statDelta = self.board.stat - initStat
+        self.initFen = initFen
         self.parent = parent
         if children:
             self.children = children
@@ -60,11 +64,50 @@ class Halfmove(NodeMixin):
         clr = 'w' if self.color == PieceColor.WHITE else 'b'
         return clr + ", " + src + ", " + tar + ": " + str(self.statDelta)
 
-def addOneFullMove():
-    return 0
+def _compareBoards(board1: Board, board2: Board) -> List[int]:
+    differences = []
+    for i in range(64):
+        if board1.squares[i] != board2.squares[i]:
+            differences.append(i)
+    return differences
 
+def print_node(board: Board) -> str:
+    if board.parent:
+        # check differences between two boards:
+                 # board.squares and board.parent.squares should have 2-3 (3 for pawn promotion, castling, ..)
+                # differences -> we can simulate the schnittmenge of these location's valid moves with the 
+                # other 1-2 differences to find the made move (that is a max of 9 move simulations which
+                # should be fairly quick)
+        differences = _compareBoards(board, board.parent)
+        for i in differences:
+            # simulate moves:
+            if board.parent.squares[i].isOccupied:
+                for move in board.parent.getMoves(i, True):
+                    tmp = Board.fromString(str(board.parent))
+                    tmp.makeMove(i, move, True)
+                    if not _compareBoards(board, tmp):
+                        if tmp.squares[move].currentPiece.color == PieceColor.WHITE:
+                            return 'w, ' + Location.absoluteSqToAlgebraicSq(i) + ', ' + Location.absoluteSqToAlgebraicSq(move) + ': ' + str(board.stat)
+                        else:
+                            return 'b, ' + Location.absoluteSqToAlgebraicSq(i) + ', ' + Location.absoluteSqToAlgebraicSq(move) + ': ' + str(board.stat)
+        # if we get here without returning a move, we're not able to identify the move:
+        raise Exception("ERROR: can't identify move from " + str(board.parent) + " to " + str(board))
+    else:
+        # initial position/parent board -> no move to be output:
+        return "INIT"
+
+## TEST: print_node
+board_parent = Board.startingPosition()
+board_child = Board.fromString(str(board_parent), board_parent)
+print(_compareBoards(board_parent, board_child))
+board_child.makeMove(52, 36)
+print(print_node(board_parent))
+print(print_node(board_child))
+
+"""
 # 1) build up the tree:
 upperLayer = []
+
 for blackmove in board.getAllMoves(PieceColor.BLACK):
     upperLayer.append(Halfmove(PieceColor.BLACK, blackmove, str(board)))
     lowerLayer = []
@@ -78,12 +121,32 @@ for blackmove in board.getAllMoves(PieceColor.BLACK):
             for w4move in l3Layer[-1].board.getAllMoves(PieceColor.WHITE):
                 l4Layer.append(Halfmove(PieceColor.WHITE, w4move, str(l3Layer[-1].board), l3Layer[-1]))
 
+# TODO: could we just use the board itself as a Node? We'd just need a function that can
+#       sort out the move between to boards to get from board to move after all of this
+# -> chupponnent move generator could handle the recursion and create new boards/moves
+
+def iterate():
+    return
+
+for halfmove in upperLayer:
+    if halfmove.children:
+        pass
+
+
+
 
 # printing the example tree:
+cnt = 0
+
 for branch in upperLayer:
     for pre, fill, node in RenderTree(branch):
         treestr = u"%s%s" % (pre, str(node))
         print(treestr)
+        cnt += 1
+
+print(cnt)
+
+"""
 
 # TODO: as a starting point, get all possible moves for black, simulate them, and look at the stats:
 # --> this already works pretty good for the example where there are two obviously good moves (
