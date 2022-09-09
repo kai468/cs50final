@@ -10,6 +10,19 @@ class PieceColor(Enum):
     WHITE = 0
     BLACK = 1
 
+    def inverse(self):
+        return PieceColor.BLACK if self == PieceColor.WHITE else PieceColor.WHITE
+
+class GameState(Enum):
+    ERROR = 0
+    IDLE = 1
+    DRAW = 2
+    WHITE_WINS = 3
+    BLACK_WINS = 4
+
+    def __int__(self):
+        return 0
+
 class FEN:
     """ https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation """
     def __init__(self, fen: str) -> None:
@@ -43,6 +56,7 @@ class Board:
         pieces = PieceFactory.getPieces(self.fen)
         self.opponent = Chupponnent()
         self.stat = 0
+        self.gameState = GameState.IDLE
         for loc in range(64):
             self.squares[loc] = Square(loc)
             if loc in pieces:
@@ -77,14 +91,16 @@ class Board:
         return output
 
     def getMoves(self, location: int, chupponnentMove: bool = False) -> List[int]:
-        if self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
+        if self.gameState != GameState.IDLE:
+            return []
+        elif self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
             return self.squares[location].currentPiece.getValidMoves(self)
         elif chupponnentMove:    # we trust our chupponnent to just query for occupied squares
             return self.squares[location].currentPiece.getValidMoves(self)
         else:
             return []
 
-    def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> bool:
+    def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> GameState:
         # returns true/false whether move was made successfully
         if target in self.getMoves(source, chupponnentMove):
             # update halfmove clock: 
@@ -118,10 +134,54 @@ class Board:
             # move count: 
             if self.fen.activeColor == 'w':
                 self.fen.fullMoveNumber = str(int(self.fen.fullMoveNumber) + 1)  # increase full move count after black's move
-            return True
+            self._updateGameState()  
+        return self.gameState   
+
+    def _updateGameState(self) -> None:
+        color = PieceColor.WHITE if self.fen.activeColor == 'w' else PieceColor.BLACK
+        kingMoveCount = len(self.getMoves(self.kingLocation[color], True))
+
+        if self._isInsufficientMaterial():
+            self.gameState = GameState.DRAW
+        elif int(self.fen.halfmoveClock) >= 150:
+            # 75-move-rule:
+            self.gameState = GameState.DRAW
+        # TODO: fivefold repetition rule!
+        elif kingMoveCount > 0:
+            # (for performance): if the king has at least one valid move, the game is not over:
+            return          
+        elif len(self.squares[self.kingLocation[color]].currentPiece.isInCheck(self)) >= 2:
+            # 2 opponent pieces attacking and no valid king moves -> checkmate
+            self._colorXwins(color.inverse())
+        elif len(self.getAllMoves(color)) == 0:
+            # no valid moves -> check if in check
+            if len(self.squares[self.kingLocation[color]].currentPiece.isInCheck(self)) > 0:
+                # checkmate: 
+                self._colorXwins(color.inverse())
+            else:
+                # stalemate:
+                self.gameState = GameState.DRAW
+
+    def _colorXwins(self, color: PieceColor):
+        if color == PieceColor.WHITE:
+            self.gameState = GameState.WHITE_WINS
+            self.stat = 10000
         else:
-            # not a valid move
+            self.gameState = GameState.BLACK_WINS
+            self.stat = -10000
+        
+    def _isInsufficientMaterial(self) -> bool:
+        if len(self.pieces[PieceColor.WHITE]) > 2 or len(self.pieces[PieceColor.BLACK]) > 2:
             return False
+        else:
+            # check for pieces other than king, bishop and knight:
+            for piece in self.pieces[PieceColor.WHITE]:
+                if piece.identifier not in ['K', 'B', 'N']:
+                    return False
+            for piece in self.pieces[PieceColor.BLACK]:
+                if piece.identifier not in ['k', 'b', 'n']:
+                    return False
+            return True
 
     def removePiece(self, piece: object) -> None:
         if not piece: return
@@ -488,6 +548,7 @@ class King(Piece):
         oppPawnRankOffset = 1 if self.color == PieceColor.WHITE else -1 
         oneSquareAttackers['N'] = [(-2,1),(-1,2),(1,2),(2,1),(2,-1),(1,-2),(-1,-2),(-2,-1)] 
         oneSquareAttackers['P'] = [(-1,oppPawnRankOffset),(1,oppPawnRankOffset)]
+        oneSquareAttackers['K'] = [(-1,1),(1,1),(-1,-1),(1,-1),(-1,0),(1,0),(0,-1),(0,1)]
 
         for attacker in oneSquareAttackers:
             attackerLocs = Location.getLocationsFromOffsets(location, oneSquareAttackers[attacker])

@@ -2,7 +2,7 @@
 # good read: https://realpython.com/pytest-python-testing/
 
 import pytest
-from chupochess import Board, Location, TrainingHelper
+from chupochess import Board, Location, TrainingHelper, GameState
 
 #### Fixtures #####
 
@@ -48,6 +48,32 @@ def test_TrainingHelper_fenToStat(ext_fen, expected_stat):
 def test_Piece_isPinned(ext_fen, source, expected_result):
     board = Board.fromString(ext_fen)
     assert board.squares[source].currentPiece._isPinned(board) == expected_result
+
+
+@pytest.mark.parametrize("ext_fen, source, target, expected_state", [
+    ('8/8/8/8/3q4/5k2/8/4K3 b - - 0 1 0', 35, 43, GameState.DRAW),
+    ('8/8/8/8/3q4/5k2/8/4K3 b - - 0 1 0', 35, 44, GameState.IDLE),
+    ('8/8/8/3r4/8/5k2/3p4/2NK4 b - - 0 1 0', 51, 58, GameState.IDLE),
+    ('8/8/5k2/8/8/8/4r3/3K4 w - - 0 1 0', 59, 52, GameState.DRAW),
+    ('8/8/5k2/8/8/1N6/4r3/3K4 w - - 0 1 0', 59, 52, GameState.DRAW),
+    ('rnbqkbnr/p1p2ppp/3p4/1p2p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1 0', 45, 13, GameState.WHITE_WINS),
+    ('Q7/8/8/5K1k/8/8/8/8 w - - 0 1 0', 0, 63, GameState.WHITE_WINS),
+    ('3b4/8/8/4k3/4p3/3pK3/6r1/8 b - - 0 1 0', 3, 30, GameState.BLACK_WINS),
+    ('4r3/8/7k/7b/6n1/2q5/8/3K4 b - - 0 1 0', 38, 53, GameState.BLACK_WINS)  
+])
+def test_board_gameState(ext_fen, source, target, expected_state):
+    board = Board.fromString(ext_fen)
+    board.makeMove(source, target, True)
+    assert board.gameState == expected_state
+
+
+@pytest.mark.parametrize("ext_fen, location, expected_len", [
+    ('8/8/8/8/8/3q1k2/8/4K3 w - - 0 1 0', 60, 0),
+    ('8/8/8/8/8/5k2/4q3/4K3 w - - 0 1 0', 60, 0),
+])
+def test_king_validMoves(ext_fen, location, expected_len):
+    board = Board.fromString(ext_fen)
+    assert len(board.getMoves(location, True)) == expected_len
 
 
 @pytest.mark.parametrize("rank, expected_locations", [
