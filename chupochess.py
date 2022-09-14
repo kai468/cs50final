@@ -210,13 +210,13 @@ class Board(NodeMixin):
             newFen = '-'
         self.fen.castlingAvailability = newFen
 
-    def getAllMoves(self, color: PieceColor):
+    def getAllMoves(self, color: PieceColor) -> List[Tuple[int,int]]:
         """ returns a List of all possible moves for all pieces of the input color (Format: Tuple[source: int, target: int]) """
         lst = []
         for piece in self.pieces[color]:
-            validMoves = self.getMoves(piece.currentSquare.id, True)
+            validMoves = self.getMoves(piece.location, True)
             for move in validMoves:
-                lst.append((piece.currentSquare.id, move))
+                lst.append((piece.location, move))
         return lst
 
 
@@ -241,7 +241,7 @@ class Chupponnent:
         if len(moves) > 0: 
             moveId = randint(0, len(moves) - 1)
             piece = board.pieces[PieceColor.BLACK][pieceId]
-            source = piece.currentSquare.id
+            source = piece.location
             target = moves[moveId]
             return (source, target)
         else: 
@@ -337,8 +337,8 @@ class TrainingHelper:
             target = Location.algebraicSqToAbsoluteSq(halfmove[1:])
             color = PieceColor.BLACK if black_moves else PieceColor.WHITE
             for piece in board.pieces[color]:
-                if (piece.identifier == identifier) and (target in board.getMoves(piece.currentSquare.id, black_moves)):
-                    source = piece.currentSquare.id
+                if (piece.identifier == identifier) and (target in board.getMoves(piece.location, black_moves)):
+                    source = piece.location
                     break
         elif halfmove[0].isupper() and len(halfmove) == 4:
             # additional information about departure file OR rank is given
@@ -352,8 +352,8 @@ class TrainingHelper:
                 # file is given:
                 sources = Location.getLocationsOnFile(halfmove[1])
             for piece in board.pieces[color]:
-                if (piece.identifier == identifier) and (piece.currentSquare.id in sources) and (target in board.getMoves(piece.currentSquare.id, black_moves)):
-                    source = piece.currentSquare.id
+                if (piece.identifier == identifier) and (piece.location in sources) and (target in board.getMoves(piece.location, black_moves)):
+                    source = piece.location
                     break
         elif halfmove[0].isupper() and len(halfmove) == 5:
             # rank and file of the departure square are given (this only occurs in very rare cases but it is possible if e.g. 3 queens
@@ -394,7 +394,7 @@ class Piece:
         else: 
             self.identifier = identifier.lower()
         self.value = value
-        self.currentSquare = None
+        self.location = -1
 
     def __str__(self) -> str:
         return self.identifier
@@ -402,14 +402,13 @@ class Piece:
     def equals(self, _o: object) -> bool:
         # The reason we do not use an overwritten __eq__ here is that List.remove() uses that 
         # and we use .remove() for a list of pieces which leads to problems when there is more
-        # than one piece with the same identifier. Plus, additionally comparing the .currentSquare
-        # would probably lead to a core dump since Square.__eq__() calls this method 
+        # than one piece with the same identifier.
         return self.identifier == _o.identifier
     
 
     def _switchSquaresAndCapture(self, board: Board, target: int) -> None:
-        self.currentSquare.reset()
-        self.currentSquare = board.squares[target]
+        board.squares[self.location].reset()
+        self.location = target
         board.removePiece(board.squares[target].reset())    # make capture if there is sth to capture
         board.squares[target].set(self)
         # update en passant rights:
@@ -420,7 +419,7 @@ class Piece:
         moveCandidates = []
         for offset in offsets:
             # explore the field in every possible direction
-            next = Location.getLocationsFromOffsets(self.currentSquare.id, [offset])
+            next = Location.getLocationsFromOffsets(self.location, [offset])
             while next:
                 next = next[0]
                 if board.squares[next].isOccupied and board.squares[next].currentPiece.color != self.color:
@@ -438,8 +437,8 @@ class Piece:
 
     def _isPinned(self, board: Board) -> bool:
         kingLocation = board.kingLocation[self.color]
-        fileOffset = Location.getFileOffset(kingLocation, self.currentSquare.id)
-        rankOffset = Location.getRankOffset(kingLocation, self.currentSquare.id)
+        fileOffset = Location.getFileOffset(kingLocation, self.location)
+        rankOffset = Location.getRankOffset(kingLocation, self.location)
         # check if self is on an "attack path" relative to king:
         if abs(fileOffset) == abs(rankOffset):
             # potential attackers: bishop and queen
@@ -460,7 +459,7 @@ class Piece:
         potentialPin = False
         while next:
             next = next[0]
-            if next == self.currentSquare.id:
+            if next == self.location:
                 potentialPin = True            
             elif board.squares[next].isOccupied and board.squares[next].currentPiece.color != self.color and board.squares[next].currentPiece.identifier.upper() in attackers:
                 # attacker found -> if we already passed our piece (self), then it's a pin:
@@ -500,7 +499,7 @@ class Piece:
             return []
         elif pin == True:
             # offsets from piece's point of view:
-            kingOffset = Location.getTupleOffset(self.currentSquare.id, board.kingLocation[self.color])
+            kingOffset = Location.getTupleOffset(self.location, board.kingLocation[self.color])
             validMoves = []
             if abs(kingOffset[0]) == abs(kingOffset[1]):
                 # diagonal attack path -> only movements on this path are allowed to not end up in check:
@@ -514,7 +513,7 @@ class Piece:
             allowedNominalOffsets.append(tuple(-ti for ti in allowedNominalOffsets[0]))
             # check if move candidates are on the attack path:
             for move in moveCandidates:
-                offset = Location.getTupleOffset(self.currentSquare.id, move)
+                offset = Location.getTupleOffset(self.location, move)
                 if (tuple(ti/abs(offset[relIndex]) for ti in offset) if (abs(offset[relIndex]) != 0) else (0,0)) in allowedNominalOffsets:
                     # legal move on the attack path -> do nothing
                     validMoves.append(move)
@@ -529,7 +528,7 @@ class King(Piece):
     def getValidMoves(self, board: Board, currentLocation: int = -1) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
         if currentLocation == -1:
-            currentLocation = self.currentSquare.id
+            currentLocation = self.location
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         # filter out move candidates with ally pieces and move candidates that would lead to a check:
         moveCandidates[:] = filterfalse(lambda candidate : \
@@ -541,7 +540,7 @@ class King(Piece):
         return moveCandidates
 
     def makeMove(self, board: Board, target: int) -> None:
-        source = self.currentSquare.id
+        source = self.location
         self._switchSquaresAndCapture(board, target)
         board.kingLocation[self.color] = target
         board.removeCastlingRights(self.color, 'KQ')
@@ -554,7 +553,7 @@ class King(Piece):
 
     def isInCheck(self, board: Board) -> List[int]:
         """ returns List of locations of attacking opponents or empty list, if not in check """
-        return self._locationUnderAttack(board, self.currentSquare.id)
+        return self._locationUnderAttack(board, self.location)
 
     def _locationUnderAttack(self, board: Board, location: int, cap: int = 2) -> List[int]:
         """ This function checks if a location is under attack by an opponent piece and 
@@ -647,7 +646,7 @@ class Rook(Piece):
 
     def makeMove(self, board: Board, target: int) -> None:
         # update castling rights
-        location = Location.absoluteSqToTuple(self.currentSquare.id)[0]
+        location = Location.absoluteSqToTuple(self.location)[0]
         defaultRank = 0 if self.color == PieceColor.WHITE else 7
         if location == (0, defaultRank):
             board.removeCastlingRights(self.color, 'Q')
@@ -673,7 +672,7 @@ class Knight(Piece):
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-2,1),(-1,2),(1,2),(2,1),(2,-1),(1,-2),(-1,-2),(-2,-1)]
-        currentLocation = self.currentSquare.id
+        currentLocation = self.location
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         moveCandidates[:] = filterfalse(lambda candidate : \
             True if (board.squares[candidate].isOccupied and board.squares[candidate].currentPiece.color == self.color) else False, moveCandidates)
@@ -688,8 +687,8 @@ class Pawn(Piece):
         Piece.__init__(self, color, 'P', 1)
 
     def isFirstMove(self) -> bool:
-        if (self.color == PieceColor.WHITE and self.currentSquare.id >= 48 and self.currentSquare.id <= 55) or \
-            (self.color == PieceColor.BLACK and self.currentSquare.id >= 8 and self.currentSquare.id <= 15):
+        if (self.color == PieceColor.WHITE and self.location >= 48 and self.location <= 55) or \
+            (self.color == PieceColor.BLACK and self.location >= 8 and self.location <= 15):
             return True
         else:
             return False
@@ -701,7 +700,7 @@ class Pawn(Piece):
             return (target >= 56)
     
     def getValidMoves(self, board: Board) -> List[int]:
-        currentLocation = self.currentSquare.id
+        currentLocation = self.location
         if self.color == PieceColor.WHITE:
             offsets = [(0,1),(1,1),(-1,1)]
         else:
@@ -712,13 +711,13 @@ class Pawn(Piece):
         # remove candidates with a file offset if there is no opponent piece
         # and candidates without file offset if there is any piece:
         moveCandidates[:] = filterfalse(lambda candidate : \
-            True if (Location.getFileOffset(self.currentSquare.id, candidate) != 0 and (board.squares[candidate].isOccupied == False or board.squares[candidate].currentPiece.color == self.color)) else (
-                True if (Location.getFileOffset(self.currentSquare.id, candidate) == 0 and board.squares[candidate].isOccupied) else False
+            True if (Location.getFileOffset(self.location, candidate) != 0 and (board.squares[candidate].isOccupied == False or board.squares[candidate].currentPiece.color == self.color)) else (
+                True if (Location.getFileOffset(self.location, candidate) == 0 and board.squares[candidate].isOccupied) else False
             ), moveCandidates)
         # if square in front of the pawn is blocked, the next square (rank offset 2) is also not a valid move :
-        if offsets[0] not in [Location.getTupleOffset(candidate, self.currentSquare.id) for candidate in moveCandidates]:
+        if offsets[0] not in [Location.getTupleOffset(candidate, self.location) for candidate in moveCandidates]:
             moveCandidates[:] = filterfalse(lambda candidate : \
-                True if (abs(Location.getRankOffset(self.currentSquare.id, candidate)) == 2) else False, moveCandidates)
+                True if (abs(Location.getRankOffset(self.location, candidate)) == 2) else False, moveCandidates)
         # add en passant moves (if applicable):
         if board.fen.enPassantTarget != '-':
             target = Location.algebraicSqToAbsoluteSq(board.fen.enPassantTarget)
@@ -727,7 +726,7 @@ class Pawn(Piece):
         return self._getGlobalValidMoves(moveCandidates, board)
 
     def makeMove(self, board: Board, target: int) -> None:
-        source = self.currentSquare.id
+        source = self.location
         if board.fen.enPassantTarget != '-' and Location.algebraicSqToAbsoluteSq(board.fen.enPassantTarget) == target:
             # en passant capture: remove the piece:
             epCaptLoc = target + 8 if self.color == PieceColor.WHITE else target - 8
@@ -764,13 +763,13 @@ class Square:
         self.isOccupied = False
         self.currentPiece = None
         if piece:
-            piece.currentSquare = None
+            piece.location = -1
         return piece
 
     def set(self, piece: Piece) -> None:
         self.isOccupied = True
         self.currentPiece = piece
-        piece.currentSquare = self
+        piece.location = self.id
     
     def __eq__(self, __o: object) -> bool:
         if self.id == __o.id and self.isOccupied == __o.isOccupied and ((self.isOccupied == False ) or (self.currentPiece.equals(__o.currentPiece))):
