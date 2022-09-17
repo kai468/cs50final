@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+enum PieceColor {
+    WHITE = 0;
+    BLACK = 1;
+}
+
+message Piece {
+    PieceColor color = 1;
+    string identifier = 2;
+    int32 value = 3;
+    int32 location = 4;
+}
+
+message Square {
+    int32 id = 1;
+    bool isOccupied = 2;
+    Piece currentPiece = 3;
+}
+
+message Board {
+    map<int32, Square> squares = 1;
+}
+
