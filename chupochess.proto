@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+enum PieceColor {
+    UNDEFINED_PIECECOLOR = 0;
+    WHITE = 1;
+    BLACK = 2;
+}
+
+enum GameState {
+    UNDEFINED_GAMESTATE = 0;
+    IDLE = 1;
+    DRAW = 2;
+    WHITE_WINS = 3;
+    BLACK_WINS = 4;
+}
+
+message Piece {
+    PieceColor color = 1;
+    string identifier = 2;
+    // value is not needed since it's constant for each piece
+    int32 location = 3;
+}
+
+message Square {
+    int32 id = 1;
+    bool isOccupied = 2;
+    Piece currentPiece = 3;
+}
+
+message Board {
+    string fen = 1;
+    int32 unmakeCounter = 2;
+    map<int32, Piece> whitePieces = 3;
+    map<int32, Piece> blackPieces = 4;
+    int32 whiteKingLocation = 5;
+    int32 blackKingLocation = 6;
+    // chupponnent is not required to be serialized because no data
+    // is saved -> just create a new one!
+    int32 stat = 7;
+    map<int32, Square> squares = 8;
+    GameState gameState = 9;
+    // tbd: parent, child? probably not..
+}

@@ -3,24 +3,43 @@ from typing import List, Tuple
 from anytree import NodeMixin
 from enum import Enum
 import re
+import chupochess_pb2
 
 
 class PieceColor(Enum):
-    WHITE = 0
-    BLACK = 1
+    UNDEFINED = 0
+    WHITE = 1
+    BLACK = 2
+
+    def toProto(self) -> chupochess_pb2.PieceColor:
+        return self.value
+
+    @classmethod
+    def fromProto(cls, proto: chupochess_pb2.PieceColor):
+        return cls(proto)
 
     def inverse(self):
-        return PieceColor.BLACK if self == PieceColor.WHITE else PieceColor.WHITE
+        if self == PieceColor.WHITE:
+            return PieceColor.BLACK
+        elif self == PieceColor.BLACK:
+            return PieceColor.WHITE
+        else:
+            return PieceColor.UNDEFINED
+        
 
 class GameState(Enum):
-    ERROR = 0
+    UNDEFINED = 0
     IDLE = 1
     DRAW = 2
     WHITE_WINS = 3
     BLACK_WINS = 4
 
-    def __int__(self):
-        return 0
+    def toProto(self) -> chupochess_pb2.GameState:
+        return self.value
+
+    @classmethod
+    def fromProto(cls, proto: chupochess_pb2.GameState):
+        return cls(proto)
 
 class FEN:
     """ https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation """
@@ -44,39 +63,90 @@ class FEN:
             ' ' + str(self.fullMoveNumber)
 
 class Board(NodeMixin):
-    def __init__(self, fen: FEN, unmakeCounter: int, parent=None, children=None) -> None:
+    def __init__(self, fen: FEN, unmakeCounter: int, squares: dict, pieces: dict, kingLocation: dict, stat: int, gameState: GameState, parent=None, children=None) -> None:
         self.fen = fen
-        self.squares = {}
         self.unmakeCounter = unmakeCounter
-        self.pieces = {}
-        self.pieces[PieceColor.WHITE] = []
-        self.pieces[PieceColor.BLACK] = []
-        self.kingLocation = {}
-        pieces = PieceFactory.getPieces(self.fen)
-        self.opponent = Chupponnent()
-        self.stat = 0
-        self.gameState = GameState.IDLE
-        for loc in range(64):
-            self.squares[loc] = Square(loc)
-            if loc in pieces:
-                self.squares[loc].set(pieces[loc])
-                self.pieces[pieces[loc].color].append(pieces[loc])
-                if pieces[loc].identifier.upper() == 'K':
-                    self.kingLocation[pieces[loc].color] = loc
-                self.stat = self.stat + pieces[loc].value if pieces[loc].color == PieceColor.WHITE else self.stat - pieces[loc].value
+        self.squares = squares
+        self.pieces = pieces
+        self.kingLocation = kingLocation
+        self.stat = stat
+        self.gameState = gameState    
         self.parent = parent
         if children:
             self.children = children
+        self.opponent = Chupponnent()
+
+    def toProto(self) -> chupochess_pb2.Board:
+        proto = chupochess_pb2.Board()
+        proto.fen = str(self.fen)
+        proto.unmakeCounter = self.unmakeCounter
+        proto.whiteKingLocation = self.kingLocation[PieceColor.WHITE]
+        proto.blackKingLocation = self.kingLocation[PieceColor.BLACK]
+        proto.stat = self.stat
+        proto.gameState = self.gameState.toProto()
+        for loc in range(64):
+            proto.squares[loc].CopyFrom(self.squares[loc].toProto())
+        cnt = 0
+        for piece in self.pieces[PieceColor.WHITE]:
+            proto.whitePieces[cnt].CopyFrom(piece.toProto())
+            cnt += 1
+        cnt = 0
+        for piece in self.pieces[PieceColor.BLACK]:
+            proto.blackPieces[cnt].CopyFrom(piece.toProto())
+            cnt += 1
+        return proto
 
     @classmethod
-    def startingPosition(cls):
-        return cls(FEN.startingPosition(), 0)
+    def fromProto(cls, proto: chupochess_pb2.Board):
+        fen = FEN(proto.fen)
+        unmakeCounter = proto.unmakeCounter
+        kingLocation = {}
+        kingLocation[PieceColor.WHITE] = proto.whiteKingLocation
+        kingLocation[PieceColor.BLACK] = proto.blackKingLocation
+        stat = proto.stat
+        gameState = GameState(proto.gameState)
+        squares = {}
+        for key in proto.squares.keys():
+            squares[key] = Square.fromProto(proto.squares[key])
+        # TODO:  pieces 
+        pieces = {}
+        pieces[PieceColor.WHITE] = []
+        pieces[PieceColor.BLACK] = []
+        for key in proto.whitePieces.keys():
+            pieces[PieceColor.WHITE].append(Piece.fromProto(proto.whitePieces[key]))
+        for key in proto.blackPieces.keys():
+            pieces[PieceColor.BLACK].append(Piece.fromProto(proto.blackPieces[key]))
+        return cls(fen, unmakeCounter, squares, pieces, kingLocation, stat, gameState)
 
     @classmethod
-    def fromString(cls, string: str, parent=None, children=None):
+    def fromFen(cls, fen: FEN, unmakeCounter: int, parent=None, children=None):
+        squares = {}
+        pieces = {}
+        pieces[PieceColor.WHITE] = []
+        pieces[PieceColor.BLACK] = []
+        kingLocation = {}
+        getPieces = PieceFactory.getPieces(fen)
+        stat = 0
+        gameState = GameState.IDLE
+        for loc in range(64):
+            squares[loc] = Square(loc)
+            if loc in getPieces:
+                squares[loc].set(getPieces[loc])
+                pieces[getPieces[loc].color].append(getPieces[loc])
+                if getPieces[loc].identifier.upper() == 'K':
+                    kingLocation[getPieces[loc].color] = loc
+                stat = stat + getPieces[loc].value if getPieces[loc].color == PieceColor.WHITE else stat - getPieces[loc].value
+        return cls(fen, unmakeCounter, squares, pieces, kingLocation, stat, gameState, parent, children)
+
+    def startingPosition():
+        return Board.fromFen(FEN.startingPosition(), 0)
+
+    def fromString(string: str, parent=None, children=None):
+        # TODO: with switching to protobuf, this method is probably not needed anymore
+
         # split 'extended FEN' into FEN and unmake counter:
         i = string.rindex(' ')
-        return cls(FEN(string[:i]), int(string[i+1:]), parent, children)
+        return Board.fromFen(FEN(string[:i]), int(string[i+1:]), parent, children)
 
     def __str__(self) -> str:
         # extended FEN: FEN + unmake counter:
@@ -94,7 +164,6 @@ class Board(NodeMixin):
             else:
                 output[i] = ''
         return output
-
     def getMoves(self, location: int, chupponnentMove: bool = False) -> List[int]:
         if self.gameState != GameState.IDLE:
             return []
@@ -387,14 +456,34 @@ class TrainingHelper:
 
 
 class Piece:
-    def __init__(self, color: PieceColor, identifier: str, value: int) -> None:
+    def __init__(self, color: PieceColor, identifier: str, value: int, location: int) -> None:
         self.color = color
         if color == PieceColor.WHITE:
             self.identifier = identifier.upper()
         else: 
             self.identifier = identifier.lower()
         self.value = value
-        self.location = -1
+        self.location = location
+
+    def toProto(self) -> chupochess_pb2.Piece:
+        proto = chupochess_pb2.Piece()
+        proto.color = self.color.toProto()
+        proto.identifier = self.identifier
+        proto.location = self.location
+        return proto
+
+    @classmethod
+    def fromProto(cls, proto: chupochess_pb2.Piece):
+        switcher = {
+            'P' : Pawn,
+            'B' : Bishop,
+            'N' : Knight,
+            'R' : Rook,
+            'Q' : Queen,
+            'K' : King
+        }
+        cls = switcher.get(proto.identifier.upper())
+        return cls(PieceColor.fromProto(proto.color), proto.location)
 
     def __str__(self) -> str:
         return self.identifier
@@ -522,8 +611,8 @@ class Piece:
             return moveCandidates
 
 class King(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'K', 0)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'K', 0, location)
 
     def getValidMoves(self, board: Board, currentLocation: int = -1) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -624,8 +713,8 @@ class King(Piece):
         return castlingRights
 
 class Queen(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'Q', 9)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'Q', 9, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
@@ -636,8 +725,8 @@ class Queen(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Rook(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'R', 5)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'R', 5, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,0), (1,0), (0, -1), (0, 1)]
@@ -655,8 +744,8 @@ class Rook(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Bishop(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'B', 3)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'B', 3, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1)]
@@ -667,8 +756,8 @@ class Bishop(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Knight(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'N', 3)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'N', 3, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
         offsets = [(-2,1),(-1,2),(1,2),(2,1),(2,-1),(1,-2),(-1,-2),(-2,-1)]
@@ -683,8 +772,8 @@ class Knight(Piece):
     
 
 class Pawn(Piece):
-    def __init__(self, color: PieceColor) -> None:
-        Piece.__init__(self, color, 'P', 1)
+    def __init__(self, color: PieceColor, location: int = -1) -> None:
+        Piece.__init__(self, color, 'P', 1, location)
 
     def isFirstMove(self) -> bool:
         if (self.color == PieceColor.WHITE and self.location >= 48 and self.location <= 55) or \
@@ -753,10 +842,25 @@ class Pawn(Piece):
 
 
 class Square:
-    def __init__(self, id: int) -> None:
+    def __init__(self, id: int, isOccupied: bool = False, currentPiece: Piece = None) -> None:
         self.id = id
         self.isOccupied = False
         self.currentPiece = None
+
+    def toProto(self) -> chupochess_pb2.Square:
+        proto = chupochess_pb2.Square()
+        proto.id = self.id
+        if self.isOccupied:
+            proto.currentPiece.CopyFrom(self.currentPiece.toProto())
+        proto.isOccupied = self.isOccupied
+        return proto 
+    
+    @classmethod
+    def fromProto(cls, proto: chupochess_pb2.Square):
+        if proto.isOccupied:
+            return cls(proto.id, proto.isOccupied, Piece.fromProto(proto.currentPiece))
+        else:
+            return cls(proto.id)
 
     def reset(self) -> object:
         piece = self.currentPiece

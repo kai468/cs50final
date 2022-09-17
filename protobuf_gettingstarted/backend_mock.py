@@ -104,18 +104,15 @@ board.squares[12] = square
 
 print(board.squares[12])
 
-#dbId = db.execute("INSERT INTO binary_storage (board_protobuf) VALUES (?);", square.serialize().SerializeToString())
 dbId = db.execute("INSERT INTO binary_storage (board_protobuf) VALUES (?);", board.serialize().SerializeToString())
 
 ## READ/DESERIALIZE: ###
-#database_mock = communication_pb2.Square()
 database_mock = communication_pb2.Board()
 response = db.execute("SELECT board_protobuf FROM binary_storage WHERE id = ?;", dbId)[0]['board_protobuf']
 database_mock.ParseFromString(response)
 
 
 # deserialize protobuf class to "real" class object:
-#read_square = Square.deserialize(database_mock)
 read_board = Board.deserialize(database_mock)
 
 print(read_board.squares[12])
