@@ -2,7 +2,8 @@
 # good read: https://realpython.com/pytest-python-testing/
 
 import pytest
-from chupochess import Board, Location, TrainingHelper, GameState
+from chupochess import Board, Location, PieceColor, TrainingHelper, GameState
+from helpers import DataLayer as dl
 import chupochess_pb2
 
 #### Fixtures #####
@@ -18,11 +19,22 @@ def startingPosition():
 
 #### Tests #####
 
+def test_datalayer():
+    #TODO
+    ext_fen = '1B6/6P1/4Nk2/8/2p5/8/PPP1P1PP/2KR1B1R w - - 1 40 0'
+    board = Board.fromString(ext_fen)
+    pass
+
+
 def test_protobuf():
     board1 = Board.startingPosition()
     board2 = Board.fromBytes(board1.toBytes())
     for i in range(64):
         assert board1.squares[i] == board2.squares[i]
+    for piece in board1.pieces[PieceColor.WHITE]:
+        assert piece in board2.pieces[piece.color]
+    for piece in board1.pieces[PieceColor.BLACK]:
+        assert piece in board2.pieces[piece.color]
 
 
 @pytest.mark.parametrize("ext_fen, expected_stat", [

@@ -182,7 +182,7 @@ class Board(NodeMixin):
         else:
             return []
 
-    def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> GameState:
+    def makeMove(self, source: int, target: int, chupponnentMove: bool = False) -> int:
         # returns true/false whether move was made successfully
         if target in self.getMoves(source, chupponnentMove):
             # update halfmove clock: 
@@ -217,7 +217,7 @@ class Board(NodeMixin):
             if self.fen.activeColor == 'w':
                 self.fen.fullMoveNumber = str(int(self.fen.fullMoveNumber) + 1)  # increase full move count after black's move
             self._updateGameState()  
-        return self.gameState   
+        return self.gameState.value   
 
     def _updateGameState(self) -> None:
         color = PieceColor.WHITE if self.fen.activeColor == 'w' else PieceColor.BLACK
@@ -501,6 +501,9 @@ class Piece:
         # and we use .remove() for a list of pieces which leads to problems when there is more
         # than one piece with the same identifier.
         return self.identifier == _o.identifier
+
+    def __eq__(self, __o: object) -> bool:
+        return (self.identifier == __o.identifier and self.location == __o.location)
     
 
     def _switchSquaresAndCapture(self, board: Board, target: int) -> None:
@@ -874,8 +877,6 @@ class Square:
         piece = self.currentPiece
         self.isOccupied = False
         self.currentPiece = None
-        if piece:
-            piece.location = -1
         return piece
 
     def set(self, piece: Piece) -> None:

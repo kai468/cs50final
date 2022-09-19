@@ -1,4 +1,3 @@
-from select import select
 from flask import Flask, flash, redirect, render_template, request, session, jsonify
 from flask_session import Session
 from chupochess import Board
@@ -21,14 +20,14 @@ db = SQL("sqlite:///chupochess.db")
 
 def getBoard(user: str) -> Board:
     """ helper function to get the existing Game (board) or initiate a new one """
-    fen = dl.getExtFen(db, user)
-    if fen:
+    bytes = dl.getBytes(db, user)
+    if bytes:
         # load existing game: 
-        board = Board.fromString(fen)
+        board = Board.fromBytes(bytes)
     else: 
         # create new game:
         board = Board.startingPosition()
-        dl.storeNewMove(db, user, str(board))
+        dl.storeNewMove(db, user, board.toBytes())
     return board
 
 @app.route("/", methods=["GET"])
@@ -56,11 +55,11 @@ def gamestate():
         # do some input validation:
         if source >= 0 and source <= 64 and target >= 0 and target <= 64 and target != source:
             response['moveMade'] = int(board.makeMove(source, target))
-            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
+            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
             board = Board.fromString(str(board))
             generateMove = board.opponent.generateMove(board)
             board.makeMove(generateMove[0], generateMove[1], True)
-            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], str(board))
+            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
         else:
             response['moveMade'] = 0
             response['validMoves'] = board.getMoves(target)
@@ -92,9 +91,9 @@ def validMoves():
 @app.route("/unmakeMove", methods=["POST"])
 def unmakeMove():
     response = {}
-    fen = dl.reverseMove(db, request.environ['REMOTE_ADDR'])
-    if fen: 
-        board = Board.fromString(fen)
+    bytes = dl.reverseMove(db, request.environ['REMOTE_ADDR'])
+    if bytes: 
+        board = Board.fromBytes(bytes)
     else: 
         board = getBoard(request.environ['REMOTE_ADDR']) 
     response['pieces'] = board.getOutput()
