@@ -108,7 +108,6 @@ class Board(NodeMixin):
         squares = {}
         for key in proto.squares.keys():
             squares[key] = Square.fromProto(proto.squares[key])
-        # TODO:  pieces 
         pieces = {}
         pieces[PieceColor.WHITE] = []
         pieces[PieceColor.BLACK] = []
@@ -844,8 +843,8 @@ class Pawn(Piece):
 class Square:
     def __init__(self, id: int, isOccupied: bool = False, currentPiece: Piece = None) -> None:
         self.id = id
-        self.isOccupied = False
-        self.currentPiece = None
+        self.isOccupied = isOccupied
+        self.currentPiece = currentPiece
 
     def toProto(self) -> chupochess_pb2.Square:
         proto = chupochess_pb2.Square()
@@ -880,6 +879,9 @@ class Square:
             return True
         else:
             return False
+
+    def __str__(self) -> str:
+        return 'Square {id : ' + str(self.id) + '; isOccupied : ' + str(self.isOccupied) + '; currentPiece : ' + str(self.currentPiece) + '}'
     
 
 class Location:
