@@ -76,6 +76,15 @@ class Board(NodeMixin):
             self.children = children
         self.opponent = Chupponnent()
 
+    def toBytes(self) -> bytes:
+        return self.toProto().SerializeToString()
+
+    @classmethod
+    def fromBytes(cls, bytes: bytes):
+        proto = chupochess_pb2.Board()
+        proto.ParseFromString(bytes)
+        return cls.fromProto(proto)
+
     def toProto(self) -> chupochess_pb2.Board:
         proto = chupochess_pb2.Board()
         proto.fen = str(self.fen)

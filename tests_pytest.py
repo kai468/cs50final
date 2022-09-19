@@ -18,21 +18,12 @@ def startingPosition():
 
 #### Tests #####
 
-def test_protobuf_with_serialization():
+def test_protobuf():
     board1 = Board.startingPosition()
-    binary = board1.toProto().SerializeToString()
-    board2_pb2 = chupochess_pb2.Board()
-    board2_pb2.ParseFromString(binary)
-    board2 = Board.fromProto(board2_pb2)
+    board2 = Board.fromBytes(board1.toBytes())
     for i in range(64):
         assert board1.squares[i] == board2.squares[i]
 
-def test_protobuf():
-    board1 = Board.startingPosition()
-    board2 = Board.fromProto(board1.toProto())
-    for i in range(64):
-        assert board1.squares[i] == board2.squares[i]
-    
 
 @pytest.mark.parametrize("ext_fen, expected_stat", [
     ('1B6/6P1/4Nk2/8/2p5/8/PPP1P1PP/2KR1B1R w - - 1 40 0', 25),
