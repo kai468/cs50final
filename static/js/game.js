@@ -1,4 +1,5 @@
-var selected;       // save selected square / -1 = no selection
+var selected;           // save selected square 
+var NULL_LOC = 255;     // no selection
         
 // responsive chess board:
 $(window).on( 'load resize', function(){
@@ -14,17 +15,17 @@ $(window).on( 'load resize', function(){
 
 // init: 
 $(document).ready(function() {
-    selected = -1;
+    selected = NULL_LOC;
     updatePieces();
 });
 
 // monitor user's clicks on the board
 $( 'td' ).click(function(event) {
-    if (selected == -1){
+    if (selected == NULL_LOC){
         selected = event.target.id;
         getMoves();
     } else if (selected == event.target.id){
-        selected = -1;
+        selected = NULL_LOC;
         deleteMoves();
     } else {
         // try to make move
@@ -116,7 +117,7 @@ function makeMove(source, target){
         if (status == 'success'){
             if (data.moveMade == 1) {
                 // valid Move: 
-                selected = -1;
+                selected = NULL_LOC;
                 // update pieces:
                 var pieceList = data.pieces;
                 for (var i = 0; i < 64; i++){

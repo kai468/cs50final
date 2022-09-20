@@ -5,6 +5,8 @@ from enum import Enum
 import re
 import chupochess_pb2
 
+INVALID_LOC = 255
+
 
 class PieceColor(Enum):
     UNDEFINED = 0
@@ -622,12 +624,12 @@ class Piece:
             return moveCandidates
 
 class King(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'K', 0, location)
 
-    def getValidMoves(self, board: Board, currentLocation: int = -1) -> List[int]:
+    def getValidMoves(self, board: Board, currentLocation: int = INVALID_LOC) -> List[int]:
         offsets = [(-1,1), (1,1), (-1, -1), (1,-1), (-1, 0), (1, 0), (0, -1), (0, 1)]
-        if currentLocation == -1:
+        if currentLocation == INVALID_LOC:
             currentLocation = self.location
         moveCandidates = Location.getLocationsFromOffsets(currentLocation, offsets)
         # filter out move candidates with ally pieces and move candidates that would lead to a check:
@@ -724,7 +726,7 @@ class King(Piece):
         return castlingRights
 
 class Queen(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'Q', 9, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
@@ -736,7 +738,7 @@ class Queen(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Rook(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'R', 5, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
@@ -755,7 +757,7 @@ class Rook(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Bishop(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'B', 3, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
@@ -767,7 +769,7 @@ class Bishop(Piece):
         self._switchSquaresAndCapture(board, target)
 
 class Knight(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'N', 3, location)
 
     def getValidMoves(self, board: Board) -> List[int]:
@@ -783,7 +785,7 @@ class Knight(Piece):
     
 
 class Pawn(Piece):
-    def __init__(self, color: PieceColor, location: int = -1) -> None:
+    def __init__(self, color: PieceColor, location: int = INVALID_LOC) -> None:
         Piece.__init__(self, color, 'P', 1, location)
 
     def isFirstMove(self) -> bool:
