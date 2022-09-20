@@ -1,0 +1,43 @@
+JSON FE -> BE
+    requestType: str    -> getMoves / makeMove / unmakeMove / drawRequest / surrender
+    src: int            -> 0-63 / 255
+    tar: int            -> 0-63 / 255
+
+JSON BE -> FE 
+    pieces: dict (keys: int, values: str)   -> pieces[location] = PieceIdentifier
+    validMoves: List[int]                   -> valid target locations
+    eogMessage: str                         -> WHITE_WINS / BLACK_WINS / DRAW (why?) / ERROR 
+    notification: str                       -> DRAW_REJECTED / UNMAKE_IMPOSSIBLE
+
+TODO: app.py should always check if chupochess response is valid, if not -> send error! 
+TODO: should we differentiate between a critical error (game is messed up -> EOG) and an uncritical error (retry)?
+TODO: app.py should keep a log of invalid FE requests (and error responses)
+
+known usecases:
+    1) user selects piece 
+        Request:    requestType = getMoves; src = selected piece; tar = 255
+        Response:   pieces; validMoves = List; eogMessage = NULL; notification = NULL
+    2) user makes move
+        Request:    requestType = makeMove; src = selected piece; tar = selected target
+        a) no end-of-game:
+        Response:   pieces; validMoves = NULL; eogMessage = NULL; notification = NULL
+        b) end-of-game:
+        Response:   pieces; validMoves = NULL; eogMessage = winner/draw; notification = NULL
+    3) user unmakes move
+        Request:    requestType = unmakeMove; src = 255; tar = 255
+        a) positive
+        Response:   pieces; validMoves = NULL; eogMessage = NULL; notification = NULL
+        b) negative (we're already back in the starting position)
+        Reponse:    pieces; validMoves = NULL; eogMessage = NULL; notification = UNMAKE_IMPOSSIBLE
+    4) user suggests draw
+        Request:    requestType = drawRequest; src = 255; tar = 255
+        a) positive
+        Response:   pieces; validMoves = NULL; eogMessage = DRAW; notification = NULL
+        b) negative
+        Response:   pieces; validMoves = NULL; eogMessage = NULL; notification = DRAW_REJECTED
+    5) user gives up
+        Request:    requestType = surrender; src = 255; tar = 255
+        Response:   pieces; validMoves = NULL; eogMessage = BLACK_WINS; notification = NULL
+    6) Pawn Promotion -> not considered for now; probably there has to be some ping pong (FE requests if move is valid
+        -> if it is, FE shows selection field for Queen, Knight, [Rook, Bishop], FE sends selected target piece to BE,
+        from there on it's the same as a normal response to makeMove)
