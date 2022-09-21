@@ -16,51 +16,37 @@ $(window).on( 'load resize', function(){
 // init: 
 $(document).ready(function() {
     selected = NULL_LOC;
-    updatePieces();
+    requestHandler("/getBoard", NULL_LOC, NULL_LOC);
 });
 
 // monitor user's clicks on the board
 $( 'td' ).click(function(event) {
     if (selected == NULL_LOC){
+        // request valid moves for selected square and marks them on the board
         selected = event.target.id;
-        getMoves();
+        requestHandler("/getBoard", selected, NULL_LOC);
     } else if (selected == event.target.id){
+        // reset valid moves visualisation for selected piece
         selected = NULL_LOC;
         deleteMoves();
     } else {
         // try to make move
-        makeMove(selected, event.target.id);
+        requestHandler("/getBoard", selected, event.target.id);
     }
 });
 
 // Buttons:
 $( '#btn_giveUp').click(function() {
-    $.post("/giveUp",{}, function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
-    });
+    requestHandler("/surrender", NULL_LOC, NULL_LOC);
 });
 
 $( '#btn_draw').click(function() {
-    $.post("/draw",
-    {}, function(data, status){
-        alert("Data: " + data.action + "\nStatus: " + status);
-    });
+    requestHandler("/drawRequest", NULL_LOC, NULL_LOC);
 });
 
 $( '#btn_unmakeMove').click(function() {
-    $.post("/unmakeMove",
-    {}, function(data, status){
-        if (status == 'success'){
-            var pieceList = data.pieces;
-            for (var i = 0; i < 64; i++){
-                $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
-                $( 'td#' + i).attr('class', 'unmarked');
-            }
-        } 
-    });
+    requestHandler("/unmakeMove", NULL_LOC, NULL_LOC);
 });
-
-// TODO: End of Game (Display Popup / Overlaying shape)
 
 
 function pieceFenToUnicode(fen){
@@ -95,106 +81,6 @@ function pieceFenToUnicode(fen){
 }
 
 
-function updatePieces(){
-    $.post("/gamestate",
-    {}, function(data, status){
-        if (status == 'success'){
-            var pieceList = data.pieces;
-            for (var i = 0; i < 64; i++){
-                $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
-            }
-        } 
-    });
-}
-
-function makeMove(source, target){
-    $.post("/gamestate",
-    {
-        source: source,
-        target: target
-    },
-    function(data, status){
-        if (status == 'success'){
-            if (data.moveMade == 1) {
-                // valid Move: 
-                selected = NULL_LOC;
-                // update pieces:
-                var pieceList = data.pieces;
-                for (var i = 0; i < 64; i++){
-                    $( 'td#' + i).text(pieceFenToUnicode(pieceList[i]));
-                    $( 'td#' + i).attr('class', 'unmarked');
-                }
-            } else {
-                // not a valid move -> select new square and mark valid moves
-                selected = target;
-                var validMoves = data.validMoves;
-                var marker = false; 
-                // check for each square if it's in the 'validMoves' List:
-                $('.chess_table td').each(function() {
-                    marker = false;
-                    for (var i = 0; i < validMoves.length; i++){
-                        if (validMoves[i] == $(this).attr('id')) {
-                            marker = true;
-                            // if there are only whitespace characters, output a diamond shape:
-                            if ($(this).html().trim().length == 0) {
-                                $(this).html('\u2b27');
-                            } 
-                            // mark the cell: 
-                            $(this).attr('class', 'marked');
-                            break;
-                        }
-                    }
-                    // reset cell if it's not in the 'validMoves' list:
-                    if (marker == false) {
-                        $(this).attr('class', 'unmarked');
-                        if ($(this).html() == '\u2b27') {
-                            $(this).html('\u2008');
-                        }
-                    }
-                }); 
-            }
-        } 
-    });
-}
-
-function getMoves(){
-    // requests valid moves for selected square and marks them on the board
-    $.post("/validMoves",
-    {
-        selected: selected
-    }, 
-    function(data, status){
-        if (status == 'success'){
-            // if there is no white piece on the selected square, 'bad request' is returned by backend
-            var validMoves = data.validMoves;
-            var marker = false;
-            // check for each square if it's in the 'validMoves' List:
-            $('.chess_table td').each(function() {
-                marker = false;
-                for (var i = 0; i < validMoves.length; i++){
-                    if (validMoves[i] == $(this).attr('id')) {
-                        marker = true;
-                        // if there are only whitespace characters, output a diamond shape:
-                        if ($(this).html().trim().length == 0) {
-                            $(this).html('\u2b27');
-                        } 
-                        // mark the cell: 
-                        $(this).attr('class', 'marked');
-                        break;
-                    }
-                }
-                // reset cell if it's not in the 'validMoves' list:
-                if (marker == false) {
-                    $(this).attr('class', 'unmarked');
-                    if ($(this).html() == '\u2b27') {
-                        $(this).html('\u2008');
-                    }
-                }
-            });
-        } 
-    });
-}
-
 function deleteMoves(){
     // delete all markers for valid Moves (that is, color via class and content for empty squares)
     for (var i = 0; i < 64; i++){
@@ -203,4 +89,110 @@ function deleteMoves(){
             $('td#' + i).html('\u2008');
         }
     }
+}
+
+
+function showEOG(message){
+    // show End-Of-Game pop up
+    // TODO
+    // inspo: https://www.w3docs.com/snippets/html/how-to-overlay-one-div-over-another.html
+
+    alert("Message: " + message);
+}
+
+function requestHandler(endpoint, src, tar){
+    // central orchestrator for handling requests to BE
+    $.post(endpoint,
+    {
+        source: src,
+        target: tar
+    }, 
+    function(data, status){
+        responseHandler(endpoint, src, tar, data, status);
+    });
+}
+
+function validateResponse(endpoint, source, target, data, status){
+
+    // check if request successful:
+    if (status != 'success'){
+        return 'Failed Request';
+    }
+    // check if request and response add up:
+    if (data.request.endpoint != endpoint){
+        return 'Mismatch: Endpoints';
+    }
+    if (data.request.source != source){
+        return 'Mismatch: Source';
+    }
+    if (data.request.target != target){
+        return 'Mismatch: Target';
+    }
+
+    return 'valid';
+}
+
+function updateBoard(pieces, validMoves){
+    // update the board visualisation: 
+    var marker = false;
+    var id = 255;
+    $('.chess_table td').each(function() {
+        marker = false;
+        id = $(this).attr('id');
+        // update the piece: 
+        $(this).text(pieceFenToUnicode(pieces[id]));
+        // check if the square is in the validMoves list:
+        for (var i = 0; i < validMoves.length; i++){
+            if (validMoves[i] == id) {
+                marker = true;
+                // if there are only whitespace characters, output a diamond shape:
+                if ($(this).html().trim().length == 0) {
+                    $(this).html('\u2b27');
+                } 
+                // mark the cell: 
+                $(this).attr('class', 'marked');
+                break;
+            }
+        }
+        // reset cell if it's not in the 'validMoves' list:
+        if (marker == false) {
+            $(this).attr('class', 'unmarked');
+            if ($(this).html() == '\u2b27') {
+                $(this).html('\u2008');
+            }
+        }
+    });
+}
+
+
+function responseHandler(endpoint, source, target, data, status){
+    // central orchestrator for handling the BE response for every type of request
+
+    // 1) check if request successful:
+    var responseValidation = validateResponse(endpoint, source, target, data, status);
+    if (responseValidation != 'valid'){
+        showEOG(responseValidation);
+    }
+
+    // 2) update Board:
+    updateBoard(data.pieces, data.validMoves);
+
+    // 3) update selected:
+    // TODO: see if this works!
+    if (data.validMoves.length == 0){
+        /*  no valid moves means that a move was made successfully, or that a square without 
+        valid moves (e.g. empty, opponent piece, or ally piece with no possible moves) was selected */
+        selected = NULL_LOC;
+    } else if (endpoint  == '/getBoard' && target != NULL_LOC) {
+        // user selected new piece while another one was selected 
+        selected = target;
+    }
+    
+    // 4) check for notification:
+    // TODO
+
+    // 5) check for EOG:
+    // TODO 
+    // showEOG(data.action, status)  
+
 }
