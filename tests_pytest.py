@@ -25,6 +25,10 @@ def test_datalayer():
     board = Board.fromString(ext_fen)
     pass
 
+def test_allMoves():
+    board = Board.fromString('r2Q1br1/1N2k2p/ppp2np1/8/4P3/8/PPPP2PP/RNB1KB1R b - - 0 1 0')
+    assert len(board.getAllMoves(PieceColor.BLACK)) == 3
+
 
 def test_protobuf():
     board1 = Board.startingPosition()

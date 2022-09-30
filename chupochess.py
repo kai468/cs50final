@@ -179,7 +179,7 @@ class Board(NodeMixin):
             return []
         elif self.squares[location].isOccupied and self.squares[location].currentPiece.color == PieceColor.WHITE:
             return self.squares[location].currentPiece.getValidMoves(self)
-        elif chupponnentMove:    # we trust our chupponnent to just query for occupied squares
+        elif self.squares[location].isOccupied and chupponnentMove:    # we trust our chupponnent to just query for occupied squares
             return self.squares[location].currentPiece.getValidMoves(self)
         else:
             return []
@@ -270,7 +270,10 @@ class Board(NodeMixin):
     def removePiece(self, piece: object) -> None:
         if not piece: return
         self.stat = self.stat - piece.value if piece.color == PieceColor.WHITE else self.stat + piece.value
-        self.pieces[piece.color].remove(piece)
+        for pieces in self.pieces[piece.color]:
+            if pieces.identifier == piece.identifier and pieces.location == piece.location:
+                self.pieces[piece.color].remove(pieces)
+                return
 
     def getPGN(self, extendedFens: List[str]) -> str:
         # TODO
@@ -298,6 +301,18 @@ class Board(NodeMixin):
                 lst.append((piece.location, move))
         return lst
 
+    def suggestDraw(self) -> bool:
+        # TODO: add to PGN/FEN?
+        if self.opponent.acceptsDraw(self):
+            self.gameState = GameState.DRAW
+            return True
+        else:
+            return False
+
+    def whiteSurrenders(self) -> None:
+        self.stat = -10000
+        self.gameState = GameState.BLACK_WINS
+
 
 class Chupponnent:
     def __init__(self) -> None:
@@ -309,22 +324,12 @@ class Chupponnent:
         # of its valid moves and does this move without any intelligence -> this is only a mock up 
         from random import seed, randint
         seed(1)
-        moves = []
-        cnt = 0
-        while len(moves) == 0:
-            pieceId = randint(0, len(board.pieces[PieceColor.BLACK]) - 1)
-            moves = board.pieces[PieceColor.BLACK][pieceId].getValidMoves(board)
-            cnt += 1
-            if cnt >= 100:
-                break
-        if len(moves) > 0: 
-            moveId = randint(0, len(moves) - 1)
-            piece = board.pieces[PieceColor.BLACK][pieceId]
-            source = piece.location
-            target = moves[moveId]
-            return (source, target)
-        else: 
+        moves = board.getAllMoves(PieceColor.BLACK)
+        if len(moves) == 0:
             return None
+        else:
+            return moves[randint(0, len(moves) - 1)]
+
 
     def generateSmartMove(self, board: Board) -> Tuple[int, int]:
         # TODO
@@ -333,6 +338,10 @@ class Chupponnent:
     def simulateMoves(depth: int):
         # TODO!
         pass
+
+    def acceptsDraw(self, board: Board) -> bool:
+        # chupponnent will only accept a draw if we're at 100 halfmoves or only the black king is left: 
+        return ((int(board.fen.halfmoveClock) >= 100) or (len(board.pieces[PieceColor.BLACK]) == 1))
 
 class TrainingHelper:
     def __init__(self) -> None:
@@ -510,8 +519,8 @@ class Piece:
 
     def _switchSquaresAndCapture(self, board: Board, target: int) -> None:
         board.squares[self.location].reset()
-        self.location = target
         board.removePiece(board.squares[target].reset())    # make capture if there is sth to capture
+        self.location = target
         board.squares[target].set(self)
         # update en passant rights:
         board.fen.enPassantTarget = '-'

@@ -1,8 +1,10 @@
 from flask import Flask, flash, redirect, render_template, request, session, jsonify
 from flask_session import Session
-from chupochess import Board
+from chupochess import Board, GameState
 from helpers import DataLayer as dl
 from cs50 import SQL 
+
+INVALID_LOC = 255
 
 # Configure application
 app = Flask(__name__)
@@ -18,7 +20,7 @@ Session(app)
 # configure database:
 db = SQL("sqlite:///chupochess.db")
 
-def getBoard(user: str) -> Board:
+def getBoardFromDb(user: str) -> Board:
     """ helper function to get the existing Game (board) or initiate a new one """
     bytes = dl.getBytes(db, user)
     if bytes:
@@ -42,74 +44,101 @@ def index():
 def about():
     return render_template("about.html")
 
-# TODO:
-@app.route("/gamestate", methods=["POST"])
-def gamestate():
+
+## new, refactored from here on downwards:
+
+
+def requestHandler(endpoint, request):
+    # TODO: if EOG -> move to finished games
+
+    src = int(request.form.get("source"))
+    tar = int(request.form.get("target"))
+    if src < 0 or src > 63:
+        src = INVALID_LOC
+    if tar < 0 or tar > 63:
+        tar = INVALID_LOC
+    # initialize JSON response: 
     response = {}
-    board = getBoard(request.environ['REMOTE_ADDR'])
-    if request.form.get("source") and request.form.get("target"):
-        # TODO: 1) check if valid Move 2) if yes: make Move; if no: return valid Moves for target sqare
-        # check if valid move
-        source = int(request.form.get("source"))
-        target = int(request.form.get("target"))
-        # do some input validation:
-        if source >= 0 and source <= 64 and target >= 0 and target <= 64 and target != source:
-            response['moveMade'] = int(board.makeMove(source, target))
-            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
-            board = Board.fromString(str(board))
-            generateMove = board.opponent.generateMove(board)
-            board.makeMove(generateMove[0], generateMove[1], True)
-            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
+    response['pieces'] = {}
+    response['validMoves'] = []
+    response['eogMessage'] = None
+    response['notification'] = None
+    # add initial request to response:
+    response['request'] = {}
+    response['request']['endpoint'] = endpoint
+    response['request']['source'] = src
+    response['request']['target'] = tar
+
+    # get board representation:
+    print(request.environ['REMOTE_ADDR'])
+    board = getBoardFromDb(request.environ['REMOTE_ADDR'])
+
+    # check the request type:
+    if endpoint == "/drawRequest":
+        if board.suggestDraw():
+            response['pieces'] = board.getOutput() 
+            response['eogMessage'] = 'DRAW'
         else:
-            response['moveMade'] = 0
-            response['validMoves'] = board.getMoves(target)
-        response['pieces'] = board.getOutput()     
-    else:
-        # print pieces:
-        response['moveMade'] = 0
+            response['notification'] = 'Draw rejected by opponnent.'
+    elif endpoint == "/surrender":
+        response['pieces'] = board.getOutput() 
+        board.whiteSurrenders()
+        response['eogMessage'] = 'BLACK_WINS'
+    elif endpoint == "/unmakeMove":
+        bytes = dl.reverseMove(db, request.environ['REMOTE_ADDR'])
+        if bytes: 
+            board = Board.fromBytes(bytes)
+        else: 
+            board = getBoardFromDb(request.environ['REMOTE_ADDR']) 
         response['pieces'] = board.getOutput()
-    return jsonify(response), 200
+        if not bytes:
+            response['notification'] = 'Unmake not possible.'
+    elif endpoint == "/getBoard":
+        # TODO
+        # there are four types of requests arriving here:
+        # 1) no source, no target -> just the piece list is requested
+        # 2) source but no target -> valid moves for source piece requested
+        # 3) source + target but not a valid move -> valid moves for source piece requested
+        # 4) source + target which form a valid move -> make move requested (could lead to EOG or not)
+        if src == INVALID_LOC and tar == INVALID_LOC:
+            response['pieces'] = board.getOutput()
+        elif src != INVALID_LOC and tar == INVALID_LOC:
+            response['pieces'] = board.getOutput()
+            response['validMoves'] = board.getMoves(src)
+        elif src != INVALID_LOC and tar != INVALID_LOC and not (tar in board.getMoves(src)):
+            response['pieces'] = board.getOutput()
+            response['validMoves'] = board.getMoves(src)
+        elif src != INVALID_LOC and tar != INVALID_LOC and (tar in board.getMoves(src)):
+            # make white move: 
+            board.makeMove(src, tar)
+            dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
+            # generate black move: 
+            generateMove = board.opponent.generateMove(board)
+            if generateMove:
+                board.makeMove(generateMove[0], generateMove[1], True)
+                dl.storeNewMove(db, request.environ['REMOTE_ADDR'], board.toBytes())
+            response['pieces'] = board.getOutput()
+            if board.gameState != GameState.IDLE:
+                if board.gameState == GameState.UNDEFINED:
+                    response['eogMessage'] = 'ERROR'
+                else:
+                    response['eogMessage'] = board.gameState.name             
+
+    return jsonify(response), 200 
 
 
-@app.route("/validMoves", methods = ["POST"])
-def validMoves():
-    response = {}
-    if request.form.get("selected"):
-        selected = int(request.form.get("selected"))
-        board = getBoard(request.environ['REMOTE_ADDR'])
-        if board.getMoves(selected):
-            response['selected'] = selected
-            response['validMoves'] = board.getMoves(selected)
-        else:
-            # no white piece on the selected square -> return -1:
-            response['selected'] = -1
-            response['validMoves'] = []
-        return jsonify(response), 200
-    else:
-        return jsonify({}), 400
+@app.route("/getBoard", methods=["POST"])
+def getBoard():
+    return requestHandler("/getBoard", request)
 
 @app.route("/unmakeMove", methods=["POST"])
 def unmakeMove():
-    response = {}
-    bytes = dl.reverseMove(db, request.environ['REMOTE_ADDR'])
-    if bytes: 
-        board = Board.fromBytes(bytes)
-    else: 
-        board = getBoard(request.environ['REMOTE_ADDR']) 
-    response['pieces'] = board.getOutput()
-    return jsonify(response), 200
+    return requestHandler("/unmakeMove", request)
 
-@app.route("/draw", methods=["POST"])
-def draw():
-    # TODO
-    action = "draw"
-    return jsonify({'action': action}), 200
+@app.route("/drawRequest", methods=["POST"])
+def drawRequest():
+    return requestHandler("/drawRequest", request)
 
-@app.route("/giveUp", methods=["POST"])
-def giveUp():
-    # TODO
-    action = "give up"
-    return jsonify({'action': action}), 200
-
-
-
+@app.route("/surrender", methods=["POST"])
+def surrender():
+    return requestHandler("/surrender", request)
