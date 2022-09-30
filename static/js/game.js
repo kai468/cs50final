@@ -189,7 +189,9 @@ function responseHandler(endpoint, source, target, data, status){
     }
     
     // 4) check for notification:
-    // TODO
+    if (data.notification != null){
+        alert(data.notification);
+    }
 
     // 5) check for EOG:
     // TODO 
