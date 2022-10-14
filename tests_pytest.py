@@ -8,10 +8,6 @@ import chupochess_pb2
 
 #### Fixtures #####
 
-@pytest.fixture
-def startingPosition():
-    return Board.startingPosition()
-
 
 #### End of Fixtures #####
 
@@ -35,10 +31,9 @@ def test_protobuf():
     board2 = Board.fromBytes(board1.toBytes())
     for i in range(64):
         assert board1.squares[i] == board2.squares[i]
-    for piece in board1.pieces[PieceColor.WHITE]:
-        assert piece in board2.pieces[piece.color]
-    for piece in board1.pieces[PieceColor.BLACK]:
-        assert piece in board2.pieces[piece.color]
+    for color in board1.pieces.keys():
+        for piece in board1.pieces[color]:
+            assert piece in board2.pieces[color]
 
 
 @pytest.mark.parametrize("ext_fen, expected_stat", [
@@ -169,8 +164,6 @@ def test_locationUnderAttack():
 def test_without_fixture():
     assert True
 
-def test_startingPos(startingPosition):
-    assert str(startingPosition) == 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 0'
 
 
 
